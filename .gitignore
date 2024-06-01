@@ -6,6 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
+# Specific to flow_models repo
+generated_images/
+data/
+logs/
+
 # Distribution / packaging
 .Python
 build/
