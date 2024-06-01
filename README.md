@@ -26,21 +26,18 @@ Currently focusing on running train.py on gpu instance.
 
 2. Get images to work with.  Two main options for this:
 
-  a. Download a relevant Kaggle dataset.  E.g. I thought this
+    a. Download a relevant Kaggle dataset.  E.g. I thought this
     [animal-faces](https://www.kaggle.com/datasets/andrewmvd/animal-faces) one
     was especially good, focusing on just the cats.  Other Kaggle datasets I
     may try in near future include:
 
     * [Facial Expressions Training Data](https://www.kaggle.com/datasets/noamsegal/affectnet-training-data?select=disgust)
-
     * [Facial Expression Image Data AFFECTNET YOLO Format](https://www.kaggle.com/datasets/fatihkgg/affectnet-yolo-format)
-
     * [Fresh and Rotten Classification](https://www.kaggle.com/datasets/swoyam2609/fresh-and-stale-classification)
-
     * [Flower Classification 10 Classes](https://www.kaggle.com/datasets/utkarshsaxenadn/flower-classification-5-classes-roselilyetc)
 
 
-  b. Download images into the appropriate directories:
+    b. Download images into the appropriate directories:
 
     `python download_images_bing.py`
     This will create the following directory structure to hold the downloaded images.
@@ -69,41 +66,11 @@ Currently focusing on running train.py on gpu instance.
     ```
 
 3. Then run train.py:
-   There are a number of status/info lines spewed by Tensorflow and Tensorflow
-   Probability (TFP) that I don't find helpful and that make a mess.  To squelch
-   those I first set environment variable `export TF_CPP_MIN_LOG_LEVEL=2` in my
-   shell that I'll run the training in.  Similarly note I've put a python line
-   at the top of train.py to squelch `UserWarning`s that are spewed by TFP.
-   In any case, then you can simply run:
-    `python train.py`
 
+    There are a number of status/info lines spewed by Tensorflow and Tensorflow
+    Probability (TFP) that I don't find helpful and that make a mess.  To squelch
+    those I first set environment variable `export TF_CPP_MIN_LOG_LEVEL=2` in my
+    shell that I'll run the training in.  Similarly note I've put a python line
+    at the top of train.py to squelch `UserWarning`s that are spewed by TFP.
+    In any case, then you can simply run: `python train.py`
 
-### Main steps in the code (train.py)
-
-#### Create data generators for training and validation
-Use TF ImageDataGenerator to load and preprocess images.
-The `class_mode=None` parameter indicates unsupervised
-learning, meaning no labels are provided.
-This approach leverages the convenience of ImageDataGenerator for handling
-large datasets and built-in data augmentation while maintaining the
-unsupervised nature of the RealNVP model.
-
-#### Define the RealNVP model
-Use tfp.bijectors and tfp.distributions from Tensorflow probability to create
-a Flow/RealNVP-based invertible neural network.
-
-#### Training loop: train the model using the data generator
-The loop processes batches of images from the generator to train the RealNVP
-model in unsupervised mode, ie without requiring labels.
-
-#### Visualization: 
-
-##### Plot Gaussian points generated from validation images
-Generate multivariate Gaussian points and apply PCA for visualization
-The transformed images are mapped to Gaussian points, and PCA is
-applied to visualize the 2D projection. Outliers (e.g., non-cat images) should
-appear as points that are distant from the main cluster of cat images.
-
-##### Save new generated/simulated images
-Try generating new images of cats by generating random samples from the multivariate
-Gaussian and mapping those back through the network.
