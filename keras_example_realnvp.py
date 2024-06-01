@@ -1,5 +1,22 @@
 """
-https://keras.io/examples/generative/real_nvp/
+From Keras' "Density estimation using Real NVP" page in the Code Examples -
+Generative Deep Learning section, apparently implementing the code from the
+RealNVP paper.  This Keras example page is at
+https://keras.io/examples/generative/real_nvp
+
+Fyi I've changed the name of the class in here from RealNVP to KerasRealNVP to
+avoid confusion with the TFP RealNVP class that I'm also playing with, where
+the TFP RealNVP class is just one affine coupling layer and is more analogous
+to what's generated in the Coupling() function in here.
+
+The example page just deals with a simple 2D plot domain rather than images,
+but looks like things are general enough that it should work ok to generalize
+to images.
+
+This code was taken from the version of that page dated 2020/08/10, and listed
+requirements of Tensorflow v2.9.1 and Tensorflow Probability v0.17.0.
+We'll soon see if it works alright with the Tensorflow v2.12.0 and Tensorflow
+Probability v0.19.0 that I'm using elsewhere in this flow_models repo.
 """
 
 import tensorflow as tf
