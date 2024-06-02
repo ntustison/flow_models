@@ -21,20 +21,15 @@ Probability v0.19.0 that I'm using elsewhere in this flow_models repo.
 
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import layers
 from tensorflow.keras import regularizers
-from sklearn.datasets import make_moons
 import numpy as np
-import matplotlib.pyplot as plt
 import tensorflow_probability as tfp
 
-# Creating a custom layer with keras API.
-output_dim = 256
-reg = 0.01
 
-
-def Coupling(input_shape):
-    input = keras.layers.Input(shape=input_shape)
+def Coupling(input_shape, hidden_layer_nodes=256, reg=0.01):
+    # input = keras.layers.InputLayer(input_shape=input_shape)  # TF 2.12 equiv
+    input = keras.layers.Input(shape=input_shape)  # original TF 2.9 method
+    output_dim = hidden_layer_nodes  # (so rest of code matches original)
 
     t_layer_1 = keras.layers.Dense(
         output_dim, activation="relu", kernel_regularizer=regularizers.l2(reg)
@@ -72,10 +67,12 @@ def Coupling(input_shape):
 
 
 class KerasRealNVP(keras.Model):
-    def __init__(self, num_coupling_layers):
+    def __init__(self, num_coupling_layers, image_shape, hidden_layer_nodes=256, reg=0.01):
         super().__init__()
 
         self.num_coupling_layers = num_coupling_layers
+        flat_image_size = np.prod(image_shape)
+        print("flat_image_size", flat_image_size, flush=True)
 
         # Distribution of the latent space.
         self.distribution = tfp.distributions.MultivariateNormalDiag(
@@ -85,7 +82,7 @@ class KerasRealNVP(keras.Model):
             [[0, 1], [1, 0]] * (num_coupling_layers // 2), dtype="float32"
         )
         self.loss_tracker = keras.metrics.Mean(name="loss")
-        self.layers_list = [Coupling(2) for i in range(num_coupling_layers)]
+        self.layers_list = [Coupling(flat_image_size, hidden_layer_nodes=hidden_layer_nodes, reg=reg) for i in range(num_coupling_layers)]
 
     @property
     def metrics(self):
@@ -141,4 +138,3 @@ class KerasRealNVP(keras.Model):
         self.loss_tracker.update_state(loss)
 
         return {"loss": self.loss_tracker.result()}
-

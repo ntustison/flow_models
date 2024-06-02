@@ -7,8 +7,9 @@ __pycache__/
 *.so
 
 # Specific to flow_models repo
-generated_images/
 data/
+models/
+output/
 logs/
 
 # Distribution / packaging
