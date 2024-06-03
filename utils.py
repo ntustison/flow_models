@@ -1,21 +1,24 @@
-# import os
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import pprint
 from scipy.spatial import distance
 import seaborn as sns
-# from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator, load_img, img_to_array
 
 
 def imgs_to_gaussian_pts(model, image_generator, N, neigvals=100, p_outliers=10):
-    """
-    images coming out of image_generator are (MxM) pixels
-    N = number of points
-    choose neigvals<M
+    """Map input images (from data generator) through the model to points in the
+    Gaussian latent space.  Also computes latent space stats in reduced coords
+    (via pca, since too high dimensionality for later sampling).  Also computes
+    the #p_outliers most extreme outliers (re euclidean dist) and #p_outliers
+    points closest to the mean.
+
+    Images coming out of image_generator are (MxM) pixels.
+    N = number of images to draw from image_generator to map.
+    Make sure neigvals<<M^2.
     """
 
     # Just making sure neigvals set correctly wrt number of samples:
@@ -66,6 +69,8 @@ def imgs_to_gaussian_pts(model, image_generator, N, neigvals=100, p_outliers=10)
 def plot_gaussian_pts_2d(training_pts, plotfile="compare_points_2d.png",
     mean=None, sim_pts=None, sim_pts_label="sim images", other_pts=None,
     other_pts_label="anomaly images", num_regen=None):
+    """Scatterplot of various categories of points in the Gaussian latent space.
+    """
 
     pca = PCA(n_components=2)
 
@@ -93,21 +98,30 @@ def plot_gaussian_pts_2d(training_pts, plotfile="compare_points_2d.png",
     ax.scatter(train_pts[:, 0], train_pts[:, 1], color="C0", alpha=0.5, label="train images")
 
     if num_regen is not None:
-        ax.scatter(train_pts[:num_regen, 0], train_pts[:num_regen, 1], label="regen images", facecolors='C0', alpha=0.5, edgecolors='k')
+        ax.scatter(train_pts[:num_regen, 0], train_pts[:num_regen, 1],
+                   color='cyan', label="regen images")
+        # ax.scatter(train_pts[:num_regen, 0], train_pts[:num_regen, 1],
+        #            label="regen images", facecolors='C0', alpha=0.5, edgecolors='k')
+        # for i in range(num_regen):
+        #     ax.annotate(str(i + 1), (train_pts[:num_regen, 0],
+        #                 train_pts[:num_regen, 1]), textcoords="offset points",
+        #                 xytext=(0, 0), ha='center', va='center')
 
     if sim_pts is not None:
         ax.scatter(sim_pts[:, 0], sim_pts[:, 1], color="C1", label=sim_pts_label)
         for i in range(sim_pts.shape[0]):
-            ax.annotate(str(i + 1), (sim_pts[i, 0], sim_pts[i, 1]), textcoords="offset points", xytext=(0, 0), ha='center', va='center')
+            ax.annotate(str(i + 1), (sim_pts[i, 0], sim_pts[i, 1]),
+                        textcoords="offset points", xytext=(0, 0), ha='center', va='center')
 
     if other_pts is not None:
         print(f"2D coordinates of the {other_pts_label} points in the scatterplot:")
         print(other_pts)
         ax.scatter(other_pts[:, 0], other_pts[:, 1], color="chartreuse", label=other_pts_label)
         for i in range(other_pts.shape[0]):
-            ax.annotate(str(i + 1), (other_pts[i, 0], other_pts[i, 1]), textcoords="offset points", xytext=(0, 0), ha='center', va='center')
+            ax.annotate(str(i + 1), (other_pts[i, 0], other_pts[i, 1]),
+                        textcoords="offset points", xytext=(0, 0), ha='center', va='center')
 
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))  # put axis just outside plot on right side
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))  # put axis outside plot on right side
     plt.title("2D PCA of mapped gaussian points")
     plt.xlabel("Principal component 1")
     plt.ylabel("Principal component 2")
@@ -117,45 +131,42 @@ def plot_gaussian_pts_2d(training_pts, plotfile="compare_points_2d.png",
 def plot_gaussian_pts_1d(training_pts, plotfile="compare_points_1d.png",
     mean=None, reduced_cov=None, sim_pts=None, other_pts=None,
     other_pts_label="anomaly images", num_regen=None):
+    """Histogram of the magnitudes of the (high-dimensional) gaussian vectors in
+    the latent space.  Since those are normally distributed (by construction),
+    if there's a reasonable number of samples then this histogram should look
+    approximately gaussian as well (ie chi2 with large dof).
+    """
 
-    y_level = 0.1  # arbitrary height to plot individual comparison points at
+    y_level = 0.01  # arbitrary height to plot individual comparison points at
     training_pts_1d = np.linalg.norm(training_pts, axis=1)  # compute vector magnitudes
 
     fig, ax = plt.subplots()
-    # ax.scatter(training_pts[:, 0], training_pts[:, 1], color="C0", alpha=0.5, label="real images")
     sns.kdeplot(training_pts_1d, label="train images", ax=ax)
-    # plt.legend()
 
     if num_regen is not None:
         y_values = y_level * np.ones(num_regen)  # Create an array of y values
-        ax.scatter(training_pts_1d[:num_regen], y_values, label="regen images", facecolors='C0', alpha=0.5, edgecolors='k')
+        ax.scatter(training_pts_1d[:num_regen], y_values, label="regen images",
+                   facecolors='C0', alpha=0.5, edgecolors='k')
 
     if sim_pts is not None:
         y_values = y_level * np.ones(len(sim_pts))  # Create an array of y values
         ax.scatter(training_pts_1d[:len(sim_pts)], y_values, color="C1", label="sim images")
-        # for i in range(sim_pts.shape[0]):
-        #     ax.annotate(str(i + 1), (sim_pts[i, 0], sim_pts[i, 1]), textcoords="offset points", xytext=(0, 0), ha='center', va='center')
 
     if other_pts is not None:
-        # print(f"2D coordinates of the {other_pts_label} points in the scatterplot:")
-        # print(other_pts)
         y_values = y_level * np.ones(len(other_pts))  # Create an array of y values
         ax.scatter(training_pts_1d[:len(other_pts)], y_values, color="chartreuse", label=other_pts_label)
-        # ax.scatter(other_pts[:, 0], other_pts[:, 1], color="chartreuse", label=other_pts_label)
-        # for i in range(other_pts.shape[0]):
-        #     ax.annotate(str(i + 1), (other_pts[i, 0], other_pts[i, 1]), textcoords="offset points", xytext=(0, 0), ha='center', va='center')
 
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))  # put axis just outside plot on right side
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))  # put axis outside plot on right side
     plt.title("1D distribution of mapped gaussian points")
     plt.xlabel("Gaussian vector magnitudes")
     plt.ylabel("Density and example points")
     plt.savefig(plotfile, bbox_inches="tight")
 
 
-def generate_multivariate_normal_samples(mean, reduced_cov, pca, num_samples):  # , num_components=None, regularization=None):
-    """
-    num_components : 100 : first N eigenvalues/eigenvectors
-    regularization : 1e-6 : water-level reg
+def generate_multivariate_normal_samples(mean, reduced_cov, pca, num_samples):
+    """Used by generate_imgs_in_batches().  The high dimensionality requires
+    generating samples in reduced space (via pca, hence reduced_cov), and then
+    transforming back out to full dimension, and thus this function.
     """
 
     # Generate new samples in reduced space
@@ -173,11 +184,25 @@ def generate_multivariate_normal_samples(mean, reduced_cov, pca, num_samples):  
     return new_samples_tf
 
 
-def generate_imgs_in_batches(model, num_gen_images, mean, reduced_cov, pca, filename="sim_image", batch_size=10, regen_pts=None, add_plot_num=False):
-    """
+def generate_imgs_in_batches(model, num_gen_images, mean, reduced_cov, pca,
+        filename="sim_image", batch_size=10, regen_pts=None, add_plot_num=False):
+    """Given latent space distribution params, and/or list of points to use
+    (regen_pts), map those through the model into images.
+
+    model: trained FlowModel object
+    num_gen_images: number of points to map (ie samples to generate from
+                    mean/reduced_cov or to draw from regen_pts)
+    The following 3 come out of imgs_to_gaussian_pts():
+      mean: numpy array of the full-dimensional vector mean point (ideally near 0)
+      reduced_cov: the cov matrix computed in the reduced space from pca
+      pca: the pca object from imgs_to_gaussian_pts()
+    filename: string that numbers appended to for filenames of generated images
     batch_size: integer - note this is batches of generated images, not training data batches!
     regen_pts: (optional) numpy array of training_pts for regenerating images for
-           first N of them, instead of generating random pts from mean & cov
+           first N of them, instead of generating random pts from mean & cov.
+           Technically doesn't have to be training_pts, could be any array of pts.
+    add_plot_num: boolean: add little orange id # at top left of output images
+        to match them up to the numbers in the scatterplots.
     """
 
     num_batches = (num_gen_images + batch_size - 1) // batch_size
@@ -204,7 +229,7 @@ def generate_imgs_in_batches(model, num_gen_images, mean, reduced_cov, pca, file
             img = (img * 255).astype(np.uint8)  # Convert back to uint8 format
             img_idx = batch_idx * batch_size + i + 1
             if add_plot_num:
-                img = add_text_to_image(img, str(img_idx), font_size=20, color="white", bold=True)
+                img = add_text_to_image(img, str(img_idx), font_size=20, color="orange", bold=True)
             plt.imsave(f"{filename}_{img_idx}.png", img)
 
         print(f"Generated and saved {batch_idx * batch_size + current_batch_size} images out of {num_gen_images}")
@@ -213,14 +238,15 @@ def generate_imgs_in_batches(model, num_gen_images, mean, reduced_cov, pca, file
 
 
 def add_text_to_image(image, text, font_size, color, bold):
-    """Annotate little plot-number in corner of image.
+    """Annotate little plot-number in corner of images.
     For use as a option in generate_imgs_in_batches().
     """
     img_pil = Image.fromarray(image)
     draw = ImageDraw.Draw(img_pil)
 
     # Set font weight
-    font = ImageFont.truetype("arialbd.ttf" if bold else "arial.ttf", font_size)
+    # font = ImageFont.truetype("arialbd.ttf" if bold else "arial.ttf", font_size)
+    font = ImageFont.load_default()
 
     # Add text
     draw.text((10, 10), text, font=font, fill=color)
@@ -229,7 +255,8 @@ def add_text_to_image(image, text, font_size, color, bold):
 
 
 def print_run_params(**kwargs):
-    """Generic function to dump any args list to be listed in text file"""
+    """Generic function to dump the args list into text file, for debug/logging.
+    """
 
     if "output_dir" not in kwargs:
         raise ValueError("print_run_params: error: 'output_dir' must be one of the kwargs.")
@@ -246,6 +273,9 @@ def print_run_params(**kwargs):
 
 
 def print_model_summary(model):
+    """Just experimenting with alternate model summaries than model.summary()
+    """
+
     # Print the header
     print(f"{'Layer Name':<20}{'Output Shape':<20}{'#Parameters':<11}")
     print("-" * 51)
@@ -259,6 +289,9 @@ def print_model_summary(model):
 
 
 def print_model_summary_nested(model):
+    """Just experimenting with alternate model summaries than model.summary()
+    """
+
     for layer in model.layers:
         print(layer.name)
         if hasattr(layer, 'layers'):
@@ -286,7 +319,8 @@ def image_data_generator(filenames, target_size=(224, 224), batch_size=1):
 
 
 def infinite_generator(generator):
-    """Ensures train_generator repeats indefinitely (it doesn't without this - why?)
+    """Ensures train_generator repeats indefinitely so can use augmentation.
+    (it isn't doing so without this - why not?)
 
     Usage:
     datagen = ImageDataGenerator(...)

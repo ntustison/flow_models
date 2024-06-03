@@ -1,35 +1,24 @@
-"""
-From Keras' "Density estimation using Real NVP" page in the Code Examples -
-Generative Deep Learning section, apparently implementing the code from the
-RealNVP paper.  This Keras example page is at
-https://keras.io/examples/generative/real_nvp
-
-Fyi I've changed the name of the class in here from RealNVP to KerasRealNVP to
-avoid confusion with the TFP RealNVP class that I'm also playing with, where
-the TFP RealNVP class is just one affine coupling layer and is more analogous
-to what's generated in the Coupling() function in here.
-
-The example page just deals with a simple 2D plot domain rather than images,
-but looks like things are general enough that it should work ok to generalize
-to images.
-
-This code was taken from the version of that page dated 2020/08/10, and listed
-requirements of Tensorflow v2.9.1 and Tensorflow Probability v0.17.0.
-We'll soon see if it works alright with the Tensorflow v2.12.0 and Tensorflow
-Probability v0.19.0 that I'm using elsewhere in this flow_models repo.
-"""
-
 import tensorflow as tf
 from tensorflow import keras
+from tensorflow.keras import layers
 from tensorflow.keras import regularizers
+from sklearn.datasets import make_moons
 import numpy as np
+import matplotlib.pyplot as plt
 import tensorflow_probability as tfp
 
+data = make_moons(3000, noise=0.05)[0].astype("float32")
+norm = layers.Normalization()
+norm.adapt(data)
+normalized_data = norm(data)
 
-def Coupling(input_shape, hidden_layer_nodes=256, reg=0.01):
-    # input = keras.layers.InputLayer(input_shape=input_shape)  # TF 2.12 equiv
-    input = keras.layers.Input(shape=input_shape)  # original TF 2.9 method
-    output_dim = hidden_layer_nodes  # (so rest of code matches original)
+# Creating a custom layer with keras API.
+output_dim = 256
+reg = 0.01
+
+
+def Coupling(input_shape):
+    input = keras.layers.Input(shape=input_shape)
 
     t_layer_1 = keras.layers.Dense(
         output_dim, activation="relu", kernel_regularizer=regularizers.l2(reg)
@@ -66,13 +55,11 @@ def Coupling(input_shape, hidden_layer_nodes=256, reg=0.01):
     return keras.Model(inputs=input, outputs=[s_layer_5, t_layer_5])
 
 
-class KerasRealNVP(keras.Model):
-    def __init__(self, num_coupling_layers, image_shape, hidden_layer_nodes=256, reg=0.01):
+class RealNVP(keras.Model):
+    def __init__(self, num_coupling_layers):
         super().__init__()
 
         self.num_coupling_layers = num_coupling_layers
-        flat_image_size = np.prod(image_shape)
-        print("flat_image_size", flat_image_size, flush=True)
 
         # Distribution of the latent space.
         self.distribution = tfp.distributions.MultivariateNormalDiag(
@@ -82,7 +69,7 @@ class KerasRealNVP(keras.Model):
             [[0, 1], [1, 0]] * (num_coupling_layers // 2), dtype="float32"
         )
         self.loss_tracker = keras.metrics.Mean(name="loss")
-        self.layers_list = [Coupling(flat_image_size, hidden_layer_nodes=hidden_layer_nodes, reg=reg) for i in range(num_coupling_layers)]
+        self.layers_list = [Coupling(2) for i in range(num_coupling_layers)]
 
     @property
     def metrics(self):
@@ -138,3 +125,47 @@ class KerasRealNVP(keras.Model):
         self.loss_tracker.update_state(loss)
 
         return {"loss": self.loss_tracker.result()}
+
+
+model = RealNVP(num_coupling_layers=6)
+
+model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0001))
+
+history = model.fit(
+    normalized_data, batch_size=256, epochs=300, verbose=2, validation_split=0.2
+)
+
+
+plt.figure(figsize=(15, 10))
+plt.plot(history.history["loss"])
+plt.plot(history.history["val_loss"])
+plt.title("model loss")
+plt.legend(["train", "validation"], loc="upper right")
+plt.ylabel("loss")
+plt.xlabel("epoch")
+plt.savefig("keras_example_original_output1.png", bbox_inches="tight")
+
+# From data to latent space.
+z, _ = model(normalized_data)
+
+# From latent space to data.
+samples = model.distribution.sample(3000)
+x, _ = model.predict(samples)
+
+f, axes = plt.subplots(2, 2)
+f.set_size_inches(20, 15)
+
+axes[0, 0].scatter(normalized_data[:, 0], normalized_data[:, 1], color="r")
+axes[0, 0].set(title="Inference data space X", xlabel="x", ylabel="y")
+axes[0, 1].scatter(z[:, 0], z[:, 1], color="r")
+axes[0, 1].set(title="Inference latent space Z", xlabel="x", ylabel="y")
+axes[0, 1].set_xlim([-3.5, 4])
+axes[0, 1].set_ylim([-4, 4])
+axes[1, 0].scatter(samples[:, 0], samples[:, 1], color="g")
+axes[1, 0].set(title="Generated latent space Z", xlabel="x", ylabel="y")
+axes[1, 1].scatter(x[:, 0], x[:, 1], color="g")
+axes[1, 1].set(title="Generated data space X", label="x", ylabel="y")
+axes[1, 1].set_xlim([-2, 2])
+axes[1, 1].set_ylim([-2, 2])
+
+plt.savefig("keras_example_original_output2.png", bbox_inches="tight")

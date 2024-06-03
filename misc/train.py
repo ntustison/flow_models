@@ -2,11 +2,13 @@ import warnings
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.optimizers import Adam
+# from tensorflow.keras.optimizers.schedules import ExponentialDecay
 from tensorflow.python.keras.callbacks import TensorBoard
+# from keras_example_realnvp import KerasRealNVP
 from flow_model import FlowModel
 import utils
 
-warnings.filterwarnings("ignore", category=UserWarning)  # TFP spews a number of these
+warnings.filterwarnings("ignore", category=UserWarning)  # TFP has a number of these
 
 # Useful stuff when debugging but annoying otherwise:
 # print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
@@ -16,8 +18,9 @@ warnings.filterwarnings("ignore", category=UserWarning)  # TFP spews a number of
 
 ### Run params: ###
 output_dir = "output"
-model_dir = "models/model_256x256"
-do_train = False  # true = training, false = inference w existing model in model_dir
+model_dir = "models/cat_models/model_256x256"
+# "animals_model_256x256" "model_512x512_noaug" "model_512x512_aug"
+do_train = False
 use_tensorboard = True
 do_imgs_and_points = True
 do_interp = False
@@ -25,20 +28,22 @@ do_interp = False
 num_epochs = 20
 batch_size = 32
 learning_rate = 0.0001
+initial_learning_rate = 0.001  # for the lr_schedule for when that's used
 use_early_stopping = False
-num_image_files = 5600  # num training images (todo: auto-find from directory)
+num_image_files = 5600  # 16000  # num training images (ideally auto-find from directory)
 augmentation_factor = 2  # set >1 to have augmentation turned on
 steps_per_epoch = num_image_files // batch_size * augmentation_factor
 num_gen_images = 5  # number of new images to generate
 ### Model architecture params: ###
 image_shape = (256, 256, 3)  # (height, width, channels) of images
-hidden_layers = [512, 512]  # nodes per layer within affine coupling layers
-flow_steps = 4  # number of affine coupling layers
+hidden_layers = [512, 512]
+flow_steps = 4
 validate_args = True
 # Record those param settings:
 utils.print_run_params(
     output_dir=output_dir, model_dir=model_dir, do_train=do_train,
     num_epochs=num_epochs, batch_size=batch_size, learning_rate=learning_rate,
+    initial_learning_rate=initial_learning_rate,
     num_gen_images=num_gen_images, num_image_files=num_image_files,
     augmentation_factor=augmentation_factor, steps_per_epoch=steps_per_epoch,
     image_shape=image_shape, hidden_layers=hidden_layers, flow_steps=flow_steps,
@@ -68,19 +73,32 @@ other_generator = datagen.flow_from_directory(
 
 
 flow_model = FlowModel(image_shape, hidden_layers, flow_steps, validate_args)
+# flow_model = KerasRealNVP(num_coupling_layers=6, image_shape=image_shape, hidden_layer_nodes=256, reg=0.01)
 print("")
 flow_model.build(input_shape=(None, *image_shape))  # only necessary for .summary() before train
+# flow_model.build(input_shape=(1,) + image_shape)  # only necessary for .summary() before train
 print("Still working on why model layer specs not outputting to model summary below...")
 flow_model.summary()
+# utils.print_model_summary(flow_model)
+# utils.print_model_summary_nested(flow_model)
+# quit()
 
 if do_train:
     print("Training model...", flush=True)
+    # lr_schedule = ExponentialDecay(
+    #  initial_learning_rate,
+    #  decay_steps=100000,
+    #  decay_rate=0.96,
+    #  staircase=True
+    # )
     callbacks = []
     if use_early_stopping:
+        # callbacks.append(EarlyStopping(monitor="neg_log_likelihood", patience=3, restore_best_weights=True))
         callbacks.append(EarlyStopping(monitor="loss", patience=3, restore_best_weights=True))
     if use_tensorboard:
         callbacks.append(TensorBoard(log_dir="logs", histogram_freq=1, write_graph=False))
-    flow_model.compile(optimizer=Adam(learning_rate=learning_rate))
+    # flow_model.compile(optimizer=Adam(learning_rate=lr_schedule), metrics=[NegLogLikelihood()])
+    flow_model.compile(optimizer=Adam(learning_rate=learning_rate))  # metrics=[NegLogLikelihood()])
     infinite_train_generator = utils.infinite_generator(train_generator)
     flow_model.fit(infinite_train_generator, epochs=num_epochs, steps_per_epoch=steps_per_epoch, callbacks=callbacks)
     print("Done training model.", flush=True)
@@ -110,11 +128,13 @@ if do_imgs_and_points:
     sim_pts = utils.generate_imgs_in_batches(flow_model, num_gen_images, mean, reduced_cov / 4, pca, filename=output_dir + "/sim_image", batch_size=5, add_plot_num=True)
     print("Now plotting 2D projection of training+sim+other points.", flush=True)
     utils.plot_gaussian_pts_2d(training_pts, plotfile=output_dir + "/compare_points_2d.png", mean=mean, sim_pts=sim_pts, other_pts=other_pts, num_regen=5)
+    # print("Now plotting 1D projection of training+sim+other magnitudes.", flush=True)
+    # utils.plot_gaussian_pts_1d(training_pts, plotfile=output_dir + "/compare_points_1d.png", mean=mean, reduced_cov=reduced_cov, sim_pts=sim_pts, other_pts=other_pts, num_regen=5)
     print("Done.", flush=True)
 
 
 if do_interp:
-    # Experimenting with interpolating images between a pair of points in latent space:
+    # Experimenting with interpolating images between a pair:
     white_cat = 'data/afhq/val/cat/flickr_cat_000016.jpg'
     calico_cat = 'data/afhq/val/cat/flickr_cat_000056.jpg'
     gray_cat = 'data/afhq/val/cat/flickr_cat_000076.jpg'
@@ -131,3 +151,4 @@ if do_interp:
     print(gaussian_points)
     gaussian_points = utils.interpolate_between_points(gaussian_points, 4, path='euclidean')
     _ = utils.generate_imgs_in_batches(flow_model, 4, None, None, None, filename=output_dir + "/gen_image", batch_size=4, regen=gaussian_points)
+
