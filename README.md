@@ -1,12 +1,14 @@
 # flow_models
-Flow-based invertible neural networks implemented with Keras and Tensorflow
+Flow-based invertible neural networks implemented with Keras, Tensorflow, and Tensorflow Probability.
 
-Work currently still in progress; not yet fully debugged/functional.
-Currently focusing on running train.py on gpu instance.
+Work currently still in progress, but things are functional meanwhile per instructions below.
+This code is what I used to produce the materials in 
+["Sim-cats! Image generation and unsupervised learning for anomaly detection as two sides of the same coin"]
+(http://research.ganse.org/datasci/sim-cats)
 
 
-### To run
-0. For full runs on a GPU-enabled EC2 instance (as opposed to just initial
+### A. To install/prepare
+1. For full runs on a GPU-enabled EC2 instance (as opposed to just initial
    smaller scale testing on a CPU-only instance), I recommend following
    [these instructions](https://github.com/aganse/py_tf2_gpu_dock_mlflow/blob/main/doc/aws_ec2_install.md)
    from my [py_tf2_gpu_dock_mlflow](https://github.com/aganse/py_tf2_gpu_dock_mlflow)
@@ -16,7 +18,7 @@ Currently focusing on running train.py on gpu instance.
    simply installing on the GPU-enabled instance per those instructions allows
    to run the training on there.
 
-1. Create the python environment and install dependencies:
+2. Create the python environment and install dependencies:
     ```
     # within the flow_models directory:
     python3 -m venv .venv
@@ -24,7 +26,7 @@ Currently focusing on running train.py on gpu instance.
     pip install -r requirements.txt
     ```
 
-2. Get images to work with.  Two main options for this:
+3. Get images to work with.  Two main options for this:
 
     a. Download a relevant Kaggle dataset.  E.g. I thought this
     [animal-faces](https://www.kaggle.com/datasets/andrewmvd/animal-faces) one
@@ -65,12 +67,9 @@ Currently focusing on running train.py on gpu instance.
             beachball/
     ```
 
-3. Then run train.py:
-
-    There are a number of status/info lines spewed by Tensorflow and Tensorflow
-    Probability (TFP) that I don't find helpful and that make a mess.  To squelch
-    those I first set environment variable `export TF_CPP_MIN_LOG_LEVEL=2` in my
-    shell that I'll run the training in.  Similarly note I've put a python line
-    at the top of train.py to squelch `UserWarning`s that are spewed by TFP.
-    In any case, then you can simply run: `python train.py`
-
+### B. To run the training
+1. Enter the python environment created above if not already in:  `source .venv/bin/activate`
+2. Set environment variable `export TF_CPP_MIN_LOG_LEVEL=2` to squelch a number of status/info lines spewed by Tensorflow and Tensorflow
+    Probability (TFP) that I don't find too helpful and that make a mess in the console output.  (Similarly note I've put a python line
+    at the top of train.py to squelch `UserWarning`s that are spewed by TFP.)
+3. Run `python train.py`.
