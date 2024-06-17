@@ -1,8 +1,12 @@
+from datetime import datetime
 import warnings
+
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers.schedules import ExponentialDecay
 from tensorflow.python.keras.callbacks import TensorBoard
+
 from flow_model import FlowModel
 import utils
 
@@ -16,32 +20,34 @@ warnings.filterwarnings("ignore", category=UserWarning)  # TFP spews a number of
 
 ### Run params: ###
 output_dir = "output"
-model_dir = "models/model_256x256"
-do_train = False  # true = training, false = inference w existing model in model_dir
+model_dir = "models/cat_models/cats_256x256new"
+do_train = True  # true = training, false = inference w existing model in model_dir
 use_tensorboard = True
 do_imgs_and_points = True
 do_interp = False
 ### Training params: ###
 num_epochs = 20
-batch_size = 32
-learning_rate = 0.0001
-use_early_stopping = False
+batch_size = 128
+learning_rate = 0.001
+initial_learning_rate = 0.001  # for the lr_schedule for when that's used
+use_early_stopping = True
 num_image_files = 5600  # num training images (todo: auto-find from directory)
 augmentation_factor = 2  # set >1 to have augmentation turned on
 steps_per_epoch = num_image_files // batch_size * augmentation_factor
-num_gen_images = 5  # number of new images to generate
+num_gen_images = 10  # number of new images to generate
 ### Model architecture params: ###
 image_shape = (256, 256, 3)  # (height, width, channels) of images
-hidden_layers = [512, 512]  # nodes per layer within affine coupling layers
-flow_steps = 4  # number of affine coupling layers
+hidden_layers = [512, 512, 512]  # nodes per layer within affine coupling layers
+flow_steps = 6  # number of affine coupling layers
 validate_args = True
 # Record those param settings:
 utils.print_run_params(
     output_dir=output_dir, model_dir=model_dir, do_train=do_train,
     num_epochs=num_epochs, batch_size=batch_size, learning_rate=learning_rate,
-    num_gen_images=num_gen_images, num_image_files=num_image_files,
-    augmentation_factor=augmentation_factor, steps_per_epoch=steps_per_epoch,
-    image_shape=image_shape, hidden_layers=hidden_layers, flow_steps=flow_steps,
+    initial_learning_rate=initial_learning_rate, num_gen_images=num_gen_images,
+    num_image_files=num_image_files, augmentation_factor=augmentation_factor,
+    steps_per_epoch=steps_per_epoch, image_shape=image_shape,
+    hidden_layers=hidden_layers, flow_steps=flow_steps,
     validate_args=validate_args
 )
 
@@ -49,8 +55,11 @@ utils.print_run_params(
 datagen = ImageDataGenerator(
     rescale=1.0 / 255,
     horizontal_flip=True,
-    zoom_range=0.2,
-    shear_range=0.2,
+    zoom_range=0.1,
+    shear_range=0.1,
+    rotation_range=10,
+    width_shift_range=0.1,
+    height_shift_range=0.1,
 )
 train_generator = datagen.flow_from_directory(
     "data/train",
@@ -76,11 +85,18 @@ flow_model.summary()
 if do_train:
     print("Training model...", flush=True)
     callbacks = []
+    lr_schedule = ExponentialDecay(
+        initial_learning_rate,
+        decay_steps=1000,
+        decay_rate=0.95,
+        staircase=True
+    )
     if use_early_stopping:
-        callbacks.append(EarlyStopping(monitor="loss", patience=3, restore_best_weights=True))
+        callbacks.append(EarlyStopping(monitor="neg_log_likelihood", patience=5, restore_best_weights=True))
     if use_tensorboard:
-        callbacks.append(TensorBoard(log_dir="logs", histogram_freq=1, write_graph=False))
-    flow_model.compile(optimizer=Adam(learning_rate=learning_rate))
+        log_dir = f"./logs/train/{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        callbacks.append(TensorBoard(log_dir=log_dir, histogram_freq=1, write_graph=False))
+    flow_model.compile(optimizer=Adam(learning_rate=lr_schedule))
     infinite_train_generator = utils.infinite_generator(train_generator)
     flow_model.fit(infinite_train_generator, epochs=num_epochs, steps_per_epoch=steps_per_epoch, callbacks=callbacks)
     print("Done training model.", flush=True)

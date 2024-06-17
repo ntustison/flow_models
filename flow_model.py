@@ -10,28 +10,6 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 
-# class NegLogLikelihood(tf.keras.metrics.Metric):
-#     def __init__(self, name="neg_log_likelihood_metric", **kwargs):
-#         super(NegLogLikelihood, self).__init__(name=name, **kwargs)
-#         self.total = self.add_weight(name="total", initializer="zeros")
-#         self.count = self.add_weight(name="count", initializer="zeros")
-
-#     def update_state(self, y_true, y_pred, sample_weight=None):
-#         log_prob = y_pred.log_prob(y_true)
-#         # log_prob = tf.math.log(y_pred.prob(y_true) + 1e-8)  # necessary?
-#         neg_log_likelihood = -tf.reduce_mean(log_prob)
-#         self.total.assign_add(neg_log_likelihood)
-#         self.count.assign_add(1)
-#         tf.print("Log Prob:", log_prob, "NLL:", neg_log_likelihood)
-
-#     def result(self):
-#         return self.total / self.count
-
-#     def reset_states(self):
-#         self.total.assign(0)
-#         self.count.assign(0)
-
-
 class FlowModel(tf.keras.Model):
     """
     code generally follows Tensorflow documentation at:
@@ -76,23 +54,26 @@ class FlowModel(tf.keras.Model):
         layer_name = "flow_step"
         flow_step_list = []
         for i in range(flow_steps):
-            # flow_step_list.append(
-            #     tfp.bijectors.BatchNormalization(
-            #         validate_args=validate_args,
-            #         name="{}_{}/batchnorm".format(layer_name, i),
-            #     )
-            # )
-            # flow_step_list.append(
-            #     tfp.bijectors.Permute(
-            #         permutation=list(range(flat_image_size)),
-            #         validate_args=validate_args,
-            #         name="{}_{}/permute".format(layer_name, i),
-            #     )
-            # )
+            flow_step_list.append(
+                tfp.bijectors.BatchNormalization(
+                    validate_args=validate_args,
+                    name="{}_{}/batchnorm".format(layer_name, i),
+                )
+            )
+            flow_step_list.append(
+                tfp.bijectors.Permute(
+                    permutation=list(reversed(range(flat_image_size))),
+                    validate_args=validate_args,
+                    name="{}_{}/permute".format(layer_name, i),
+                )
+            )
             flow_step_list.append(
                 tfp.bijectors.RealNVP(
                     num_masked=flat_image_size // 2,
-                    shift_and_log_scale_fn=tfp.bijectors.real_nvp_default_template(hidden_layers=hidden_layers),
+                    shift_and_log_scale_fn=tfp.bijectors.real_nvp_default_template(
+                        hidden_layers=hidden_layers,
+                        kernel_initializer=tf.keras.initializers.GlorotUniform()
+                    ),
                     validate_args=validate_args,
                     name="{}_{}/realnvp".format(layer_name, i),
                 )
@@ -128,39 +109,14 @@ class FlowModel(tf.keras.Model):
         images = tf.reshape(images, (-1, np.prod(self.image_shape)))
         with tf.GradientTape() as tape:
             log_prob = self.flow.log_prob(images)
+            if tf.reduce_any(tf.math.is_nan(log_prob)) or tf.reduce_any(tf.math.is_inf(log_prob)):
+                tf.print("NaN or Inf detected in log_prob")
             neg_log_likelihood = -tf.reduce_mean(log_prob)
             gradients = tape.gradient(neg_log_likelihood, self.flow.trainable_variables)
+            if tf.reduce_any([tf.reduce_any(tf.math.is_nan(g)) or tf.reduce_any(tf.math.is_inf(g)) for g in gradients]):
+                tf.print("NaN or Inf detected in gradients")
+            gradients = [tf.clip_by_value(g, -1.0, 1.0) for g in gradients]  # gradient clipping
         self.optimizer.apply_gradients(zip(gradients, self.flow.trainable_variables))
-        return {"neg_log_likelihood": neg_log_likelihood}
-
-    # @tf.function
-    # def train_step(self, data):
-    #     debug = True
-
-    #     images = data
-    #     images = tf.reshape(images, (-1, np.prod(self.image_shape)))
-
-    #     with tf.GradientTape() as tape:
-    #         log_prob = self.flow.log_prob(images)
-
-    #         if debug:
-    #             if tf.reduce_any(tf.math.is_nan(log_prob)) or tf.reduce_any(tf.math.is_inf(log_prob)):
-    #                 tf.print("NaN or Inf detected in log_prob")
-
-    #         neg_log_likelihood = -tf.reduce_mean(log_prob)
-    #         gradients = tape.gradient(neg_log_likelihood, self.flow.trainable_variables)
-
-    #         if debug:
-    #             if tf.reduce_any([tf.reduce_any(tf.math.is_nan(g)) or tf.reduce_any(tf.math.is_inf(g)) for g in gradients]):
-    #                 tf.print("NaN or Inf detected in gradients")
-
-    #         # Gradient clipping
-    #         if debug:
-    #             gradients = [tf.clip_by_value(g, -1.0, 1.0) for g in gradients]
-
-    #     self.optimizer.apply_gradients(zip(gradients, self.flow.trainable_variables))
-
-    #     # if debug:
-    #     #     tf.print("Neg Log Likelihood:", neg_log_likelihood)
-
-    #     return {"neg_log_likelihood": neg_log_likelihood}
+        bits_per_dim_divisor = (np.prod(self.image_shape) * tf.math.log(2.0))
+        bpd = neg_log_likelihood / bits_per_dim_divisor
+        return {"neg_log_likelihood": neg_log_likelihood, "bits_per_dim": bpd}
