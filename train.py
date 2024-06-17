@@ -23,14 +23,14 @@ output_dir = "output"
 model_dir = "models/cat_models/cats_256x256new"
 do_train = True  # true = training, false = inference w existing model in model_dir
 use_tensorboard = True
-do_imgs_and_points = True
-do_interp = False
+do_imgs_and_points = True  # generate scatterplots, sim images, etc:  not dataset specific
+do_interp = False  # interp sim images between some training points:  cat dataset specific
 ### Training params: ###
 num_epochs = 20
 batch_size = 128
-learning_rate = 0.001
-initial_learning_rate = 0.001  # for the lr_schedule for when that's used
-use_early_stopping = True
+learning_rate = 0.0001  # scaler -> constant rate; list-of-3 -> exponential decay
+# learning_rate = [0.001, 500, 0.95]  # [initial_rate, decay_steps, decay_rate]
+early_stopping_patience = 10  # value <=0 turns off early_stopping
 num_image_files = 5600  # num training images (todo: auto-find from directory)
 augmentation_factor = 2  # set >1 to have augmentation turned on
 steps_per_epoch = num_image_files // batch_size * augmentation_factor
@@ -44,7 +44,7 @@ validate_args = True
 utils.print_run_params(
     output_dir=output_dir, model_dir=model_dir, do_train=do_train,
     num_epochs=num_epochs, batch_size=batch_size, learning_rate=learning_rate,
-    initial_learning_rate=initial_learning_rate, num_gen_images=num_gen_images,
+    early_stopping_patience=early_stopping_patience, num_gen_images=num_gen_images,
     num_image_files=num_image_files, augmentation_factor=augmentation_factor,
     steps_per_epoch=steps_per_epoch, image_shape=image_shape,
     hidden_layers=hidden_layers, flow_steps=flow_steps,
@@ -84,21 +84,42 @@ flow_model.summary()
 
 if do_train:
     print("Training model...", flush=True)
+
+    if isinstance(learning_rate, float):
+        lrate = learning_rate
+    elif isinstance(learning_rate, list) and len(learning_rate) == 3:
+        lrate = ExponentialDecay(
+            learning_rate[0],
+            decay_steps=learning_rate[1],
+            decay_rate=learning_rate[2],
+            staircase=True
+        )
+    else:
+        print("train.py: error: learning_rate not scalar or list of length 3.")
+        quit()
+
     callbacks = []
-    lr_schedule = ExponentialDecay(
-        initial_learning_rate,
-        decay_steps=1000,
-        decay_rate=0.95,
-        staircase=True
-    )
-    if use_early_stopping:
-        callbacks.append(EarlyStopping(monitor="neg_log_likelihood", patience=5, restore_best_weights=True))
+    if early_stopping_patience > 0:
+        callbacks.append(EarlyStopping(
+            monitor="neg_log_likelihood",
+            patience=early_stopping_patience,
+            restore_best_weights=True
+        ))
     if use_tensorboard:
         log_dir = f"./logs/train/{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-        callbacks.append(TensorBoard(log_dir=log_dir, histogram_freq=1, write_graph=False))
-    flow_model.compile(optimizer=Adam(learning_rate=lr_schedule))
+        callbacks.append(TensorBoard(
+            log_dir=log_dir,
+            histogram_freq=1,
+            write_graph=False
+        ))
+    flow_model.compile(optimizer=Adam(learning_rate=lrate))
     infinite_train_generator = utils.infinite_generator(train_generator)
-    flow_model.fit(infinite_train_generator, epochs=num_epochs, steps_per_epoch=steps_per_epoch, callbacks=callbacks)
+    flow_model.fit(
+        infinite_train_generator,
+        epochs=num_epochs,
+        steps_per_epoch=steps_per_epoch,
+        callbacks=callbacks
+    )
     print("Done training model.", flush=True)
     flow_model.save_weights(model_dir + "/model_weights")
     print("Model weights saved to file.", flush=True)
