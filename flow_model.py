@@ -23,7 +23,7 @@ class FlowModel(tf.keras.Model):
     flow_model = FlowModel(image_shape, hidden_layers, flow_steps, validate_args)
     """
 
-    def __init__(self, image_shape, hidden_layers=[256, 256], flow_steps=4, validate_args=False):
+    def __init__(self, image_shape, hidden_layers=[256, 256], flow_steps=4, reg_level=0.01, validate_args=False):
         """RealNVP-based flow architecture, using TFP as much as possible so the
         architectures don't *exactly* match the papers but are pretty close.
         Refs:
@@ -37,8 +37,14 @@ class FlowModel(tf.keras.Model):
         tfp.bijectors.RealNVP api documentation:  https://www.tensorflow.org/probability/api_docs/python/tfp/bijectors/RealNVP
         Ardizzone 2019 INNs paper:  https://arxiv.org/pdf/1808.04730
         Lilian Weng Flow-based Deep Generative Models tutorial:  http://lilianweng.github.io/posts/2018-10-13-flow-models
-        Kang flow_based_models NICE & RealNVP repo:  https://github.com/jaekookang/flow_based_models
-        Kang INNs repo (Ardizzone implementation):  https://github.com/jaekookang/invertible_neural_networks
+        Jaekoo Kang's flow_based_models NICE & RealNVP repo:  https://github.com/jaekookang/flow_based_models
+        Jaekoo Kang's INNs repo (Ardizzone implementation):  https://github.com/jaekookang/invertible_neural_networks
+        Chanseok Kang's RealNVP notebook:
+          https://colab.research.google.com/github/goodboychan/goodboychan.github.io/blob/main/_notebooks/2021-09-08-01-AutoRegressive-flows-and-RealNVP.ipynb#scrollTo=NNun_3RT3A56
+        RealNVP implementation example in Stackoverflow:
+          https://stackoverflow.com/questions/57261612/better-way-of-building-realnvp-layer-in-tensorflow-2-0
+        Brian Keng's Normalizing Flows with Real NVP article, more mathematical:
+          https://bjlkeng.io/posts/normalizing-flows-with-real-nvp/#modified-batch-normalization
 
         Note in NICE paper regarding flow_steps: "Examining the Jacobian, we
         observe that at least three coupling layers are necessary to allow all
@@ -62,7 +68,8 @@ class FlowModel(tf.keras.Model):
             )
             flow_step_list.append(
                 tfp.bijectors.Permute(
-                    permutation=list(reversed(range(flat_image_size))),
+                    # permutation=list(reversed(range(flat_image_size))),
+                    permutation=list(np.random.permutation(flat_image_size)),
                     validate_args=validate_args,
                     name="{}_{}/permute".format(layer_name, i),
                 )
@@ -72,17 +79,20 @@ class FlowModel(tf.keras.Model):
                     num_masked=flat_image_size // 2,
                     shift_and_log_scale_fn=tfp.bijectors.real_nvp_default_template(
                         hidden_layers=hidden_layers,
-                        kernel_initializer=tf.keras.initializers.GlorotUniform()
+                        kernel_initializer=tf.keras.initializers.GlorotUniform(),
+                        kernel_regularizer=tf.keras.regularizers.l2(reg_level)
                     ),
                     validate_args=validate_args,
                     name="{}_{}/realnvp".format(layer_name, i),
                 )
             )
+        flow_step_list = list(flow_step_list[1:])  # leave off last permute
         self.flow_bijector = tfp.bijectors.Chain(
-            list(reversed(flow_step_list)),
+            flow_step_list,
             validate_args=validate_args,
             name=layer_name
         )
+        print("flow_step_list:", flow_step_list)
 
         base_distribution = tfp.distributions.MultivariateNormalDiag(loc=[0.] * flat_image_size)
         self.flow = tfp.distributions.TransformedDistribution(

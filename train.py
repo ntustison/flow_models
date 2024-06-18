@@ -26,18 +26,19 @@ use_tensorboard = True
 do_imgs_and_points = True  # generate scatterplots, sim images, etc:  not dataset specific
 do_interp = False  # interp sim images between some training points:  cat dataset specific
 ### Training params: ###
-num_epochs = 20
+num_epochs = 10
 batch_size = 128
-learning_rate = 0.0001  # scaler -> constant rate; list-of-3 -> exponential decay
+reg_level = 0  # 0.01  # regularization level for the L2 reg in realNVP hidden layers
+learning_rate = 0.00001  # scaler -> constant rate; list-of-3 -> exponential decay
 # learning_rate = [0.001, 500, 0.95]  # [initial_rate, decay_steps, decay_rate]
-early_stopping_patience = 10  # value <=0 turns off early_stopping
+early_stopping_patience = 0  # value <=0 turns off early_stopping
 num_image_files = 5600  # num training images (todo: auto-find from directory)
 augmentation_factor = 2  # set >1 to have augmentation turned on
 steps_per_epoch = num_image_files // batch_size * augmentation_factor
 num_gen_images = 10  # number of new images to generate
 ### Model architecture params: ###
 image_shape = (256, 256, 3)  # (height, width, channels) of images
-hidden_layers = [512, 512, 512]  # nodes per layer within affine coupling layers
+hidden_layers = [512, 512]  # nodes per layer within affine coupling layers
 flow_steps = 6  # number of affine coupling layers
 validate_args = True
 # Record those param settings:
@@ -76,11 +77,13 @@ other_generator = datagen.flow_from_directory(
 )
 
 
-flow_model = FlowModel(image_shape, hidden_layers, flow_steps, validate_args)
+flow_model = FlowModel(image_shape, hidden_layers, flow_steps, reg_level, validate_args)
 print("")
 flow_model.build(input_shape=(None, *image_shape))  # only necessary for .summary() before train
 print("Still working on why model layer specs not outputting to model summary below...")
 flow_model.summary()
+# _ = model(X)
+# model.summary()
 
 if do_train:
     print("Training model...", flush=True)
