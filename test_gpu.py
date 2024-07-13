@@ -1,3 +1,8 @@
+"""
+A test process designed to run long enough to get a chance to actually see it
+while running on the GPU, say by checking via nvidia-smi command.
+"""
+
 import tensorflow as tf
 import time
 
