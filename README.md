@@ -26,8 +26,10 @@ instructions below.  This code is what I used to produce the materials in
     > make create-env
     Creating/installing new python env /home/ubuntu/src/python/flow_models/.venv3
     ```
-    (this is just a convenience entry to run the usual `python3 -m venv .venv &&
-    source .venv/bin/activate && pip install -r requirements.txt`)
+    (this is just a convenience macro to run the usual `python3 -m venv .venv &&
+    source .venv/bin/activate && pip install -r requirements.txt`.  except note
+    this macro creates new .venvN subdirectories incrementing N to avoid
+    overwriting existing env subdirectories.)
 
 3. Get images to train/test with:
 
