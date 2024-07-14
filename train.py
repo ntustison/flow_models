@@ -54,7 +54,7 @@ utils.print_run_params(
 )
 
 
-datagen = S3ImageDataGenerator(
+datagen = ImageDataGenerator(
     rescale=1.0 / 255,
     horizontal_flip=True,
     zoom_range=0.1,
