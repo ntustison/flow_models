@@ -24,9 +24,10 @@ instructions below.  This code is what I used to produce the materials in
 2. Create the python environment and install dependencies:
     ```
     > make create-env
-    Creating and installing new python environment /home/ubuntu/src/python/flow_models/.venv3... 
+    Creating/installing new python env /home/ubuntu/src/python/flow_models/.venv3
     ```
-    (this is just a convenience to do the standard `python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
+    (this is just a convenience entry to run the usual `python3 -m venv .venv &&
+    source .venv/bin/activate && pip install -r requirements.txt`)
 
 3. Get images to train/test with:
 
