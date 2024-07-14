@@ -8,6 +8,7 @@ from tensorflow.keras.optimizers.schedules import ExponentialDecay
 from tensorflow.python.keras.callbacks import TensorBoard
 
 from flow_model import FlowModel
+from file_utils import S3ImageDataGenerator
 import utils
 
 warnings.filterwarnings("ignore", category=UserWarning)  # TFP spews a number of these
@@ -53,7 +54,7 @@ utils.print_run_params(
 )
 
 
-datagen = ImageDataGenerator(
+datagen = S3ImageDataGenerator(
     rescale=1.0 / 255,
     horizontal_flip=True,
     zoom_range=0.1,

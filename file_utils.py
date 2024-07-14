@@ -4,9 +4,93 @@ import numpy as np
 import boto3
 
 
+s3_paginator = boto3.client('s3').get_paginator('list_objects_v2')
+
+
+def s3keys(s3_uri, start_after='', extensions=['png', 'jpg'], cycle=False, delimiter='/'):
+    """
+    Generate S3 object keys from a specified bucket/prefix with given extensions,
+    optionally cycling indefinitely, e.g. to accommodate data augmentation.
+
+    Parameters:
+        s3_uri (str): S3 URI in the form "s3://<bucketname>/<prefix>"
+        start_after (str): A key to start the listing after, to skip objects up to this key. Defaults to ''.
+        extensions (list of str): A list of file extensions to filter objects by. Defaults to ['png', 'jpg'].
+        cycle (bool): If True, the listing of keys will cycle indefinitely. Defaults to False.
+        delimiter (str): The delimiter to use in listing. Defaults to '/'.
+
+    Yields:
+        str: S3 object keys that match the specified extensions.
+
+    Raises:
+        ValueError: If 'start_after' is set but does not start with the 'prefix'.
+
+    Example1:
+        # Example usage: List all '.png' and '.jpg' files in 'foo/bar/' directory of 'mybucket' bucket.
+        for key in s3keys('s3://mybucket/foo/bar/', extensions=['png', 'jpg'], cycle=True):
+            print('key:', key)
+
+    Example2:
+        # Start generator at file identified by start_after
+        mykeys = s3keys('s3://aganse-images/train/cat', start_after='train/cat/flickr_cat_000012')
+        next(mykeys)
+
+    Note:
+        Use the `cycle` parameter with caution as it can create an infinite loop.
+        Ensure to handle this in your application logic to avoid endless execution.
+
+    """
+    print(f"beginning of s3uri={s3_uri[:5]}")
+    if s3_uri[:5] == "s3://":
+        bucket_name, _, prefix = s3_uri[5:].partition('/')
+    else:
+        raise ValueError("s3_uri should start with s3://...")
+    print(f"bucket_name={bucket_name}, prefix={prefix}")
+    prefix = prefix.lstrip(delimiter)
+    if start_after and not start_after.startswith(prefix):  # Validation before modifying start_after
+        raise ValueError("start_after must start with the prefix.")
+    start_after = (start_after or prefix) if prefix.endswith(delimiter) else start_after
+    while True:  # Loop to restart the generator for cycling
+        for page in s3_paginator.paginate(Bucket=bucket_name, Prefix=prefix, StartAfter=start_after):
+            for content in page.get('Contents', ()):
+                if content['Key'].split('.')[-1] in extensions:
+                    yield content['Key']
+        if not cycle:  # Break the loop if cycling is not enabled
+            break
+
+
 class S3ImageDataGenerator:
-    def __init__(self, rescale=None, horizontal_flip=False, zoom_range=(1.0, 1.0),
-                 shear_range=0.0, rotation_range=0, width_shift_range=0.0,
+    """
+    Generates batches of tensor image data from an S3 bucket with real-time data
+    augmentation.  Designed to be a drop-in replacement (or close) for Tensorflow's
+    tensorflow.keras.preprocessing.image.ImageDataGenerator and its
+    flow_from_directory() method, except pulling files from AWS S3 instead of
+    local filesystem.
+
+    Attributes (defaults are 0.0 when not specified otherwise):
+        rescale (float): Rescaling factor. Defaults to None.
+        horizontal_flip (bool): Randomly flip inputs horizontally. Default=False
+        zoom_range (float): Range for random zoom between [1-zoom_range, 1+zoom_range].
+        shear_range (float): Shear Intensity (Shear angle in counter-clockwise direction as radians)
+        rotation_range (float): Degree range for random rotations.
+        width_shift_range (float): Fraction of total width for random horizontal shifts.
+        height_shift_range (float): Fraction of total height for random vertical shifts.
+
+    Example:
+        # Initialize generator with specific augmentation parameters
+        generator = S3ImageDataGenerator(
+            rescale=1./255,
+            horizontal_flip=True,
+            zoom_range=0.2,
+            shear_range=0.2,
+            rotation_range=40,
+            width_shift_range=0.2,
+            height_shift_range=0.2,
+        )
+    """
+
+    def __init__(self, rescale=None, horizontal_flip=False, zoom_range=0.0,
+                 shear_range=0.0, rotation_range=0.0, width_shift_range=0.0,
                  height_shift_range=0.0):
         self.rescale = rescale
         self.horizontal_flip = horizontal_flip
@@ -16,11 +100,34 @@ class S3ImageDataGenerator:
         self.width_shift_range = width_shift_range
         self.height_shift_range = height_shift_range
 
-    def flow_from_directory(self, bucket, prefix, target_size=(256, 256),
-                            batch_size=32, class_mode='binary', shuffle=True):
-        s3 = boto3.client('s3')
-        response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
-        all_keys = [obj['Key'] for obj in response['Contents'] if obj['Key'].endswith(('.jpg', '.png'))]
+    def flow_from_directory(self, s3_uri, target_size=(256, 256),
+                            batch_size=32, class_mode='binary', shuffle=True,
+                            save_format=['png', 'jpg']):
+        """
+        Takes the path to an S3 bucket and generates batches of augmented/normalized data.
+
+        Parameters:
+            s3_uri (str): S3 URI in the form "s3://<bucketname>/<prefix>"
+            extensions (list of str): List of acceptable image extensions.
+            target_size (tuple of int): The dimensions to which all images found will be resized.
+            batch_size (int): Size of the batch of images to return with each iteration.
+            shuffle (bool): Whether to shuffle the order of images processed in the dataset.
+            save_format (str, list, tuple): file extensions "png", "jpg", etc as individual
+                                            string or as list or tuple of strings.
+
+        Returns:
+            A DirectoryIterator yielding tuples of (x, y) where x is a numpy array containing a batch
+            of images with shape (batch_size, *image_size, 3) and y is a numpy array of corresponding labels.
+
+        Example:
+            train_generator = generator.flow_from_directory('mybucket', 'train_data/', batch_size=100,
+                                                            shuffle=True, seed=42)
+        """
+
+        # s3 = boto3.client('s3')
+        # response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        # all_keys = [obj['Key'] for obj in response['Contents'] if obj['Key'].endswith(('.jpg', '.png'))]
+        all_keys = s3keys(s3_uri, start_after='', extensions=['png', 'jpg'], cycle=False)
 
         def generator():
             while True:
@@ -49,9 +156,9 @@ class S3ImageDataGenerator:
                     elif class_mode is None:
                         yield np.array(batch_images)
                     else:
-                        raise ValueError("currently only class_mode = {None, 'input'} are implemented.")
+                        raise ValueError("currently only class_modes {None, 'input'} are implemented yet.")
                         # The following line relies on batch_labels defined in
-                        # commented-out code above, after it's finished:
+                        # commented-out lines above (which must be completed):
                         # yield np.array(batch_images), np.array(batch_labels)
 
         return generator()
