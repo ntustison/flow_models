@@ -63,14 +63,14 @@ datagen = S3ImageDataGenerator(
     height_shift_range=0.0,  # 0.1,  # still debugging this feature
 )
 train_generator = datagen.flow_from_directory(
-    "s3://aganse-images/misc",
+    "s3://mybucket/train",
     target_size=image_shape[:2],  # images get resized to this size
     batch_size=batch_size,
     class_mode=None,  # unsupervised learning so no class labels
     shuffle=False,  # possibly helpful for training but pain for plot revamps/additions
 )
 other_generator = datagen.flow_from_directory(
-    "data",
+    "s3://mybucket/val",
     target_size=image_shape[:2],  # images get resized to this size
     batch_size=batch_size,
     class_mode=None,  # unsupervised learning so no class labels

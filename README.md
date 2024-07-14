@@ -70,6 +70,5 @@ instructions below.  This code is what I used to produce the materials in
 2. Set environment variable `export TF_CPP_MIN_LOG_LEVEL=2` to squelch a number of status/info lines spewed by Tensorflow and Tensorflow
     Probability (TFP) that I don't find too helpful and that make a mess in the console output.  (Similarly note I've put a python line
     at the top of train.py to squelch `UserWarning`s that are spewed by TFP.)
-3. Set `datagen = S3ImageDataGenerator()` or `datagen = ImageDataGenerator()`
-    in train.py per discussion above.  (temporary; soon unnecessary)
+3. Set desired parameters in `train.py`.
 4. Run `python train.py`.
