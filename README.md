@@ -23,15 +23,15 @@ instructions below.  This code is what I used to produce the materials in
 
 2. Create the python environment and install dependencies:
     ```
-    # within the flow_models directory:
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install -r requirements.txt
+    > make create-env
+    Creating and installing new python environment /home/ubuntu/src/python/flow_models/.venv3... 
     ```
+    (this is just a convenience to do the standard `python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
 
-3. Getting images to work with; two main options for this:
+3. Get images to train/test with:
 
-    a. Download a relevant Kaggle dataset.  E.g. I thought this
+    Of course you can use whatever images you want.  For experimentation I
+    recommend downloading a relevant Kaggle dataset.  E.g. I thought the
     [animal-faces](https://www.kaggle.com/datasets/andrewmvd/animal-faces) one
     was especially good, focusing on just the cats.  Other Kaggle datasets I
     may try in near future include:
@@ -41,38 +41,28 @@ instructions below.  This code is what I used to produce the materials in
     * [Fresh and Rotten Classification](https://www.kaggle.com/datasets/swoyam2609/fresh-and-stale-classification)
     * [Flower Classification 10 Classes](https://www.kaggle.com/datasets/utkarshsaxenadn/flower-classification-5-classes-roselilyetc)
 
-    If using dedicated GPU-enabled instance, you could save these directly on
-    that instance in a `data` subdir within the `flow_models` repo directory;
-    for that case use TF's ImageDataGenerator in the train.py script.
-    Or you can use image files in an S3 bucket, whether in the dedicated
-    GPU-enabled instance or soon within AWS Batch configuration; for this case
-    use my S3ImageDataGenerator class in the train.py script which is a drop-in
-    replacement.  TF's ImageDataGenerator is set as default; once things converge
-    in this repo one won't have to explicitly tweak code to enable S3.  ;-)
+    If using a dedicated GPU-enabled instance, you could save these directly on
+    that instance in a `data` subdir within the `flow_models` repo directory.
+    For that case the URIs for train_generator and other_generator in train.py
+    can simply be `"data/train"` for example.  Or you can use image files in an
+    S3 bucket, whether in the dedicated GPU-enabled instance or soon within
+    AWS Batch configuration.  For that case the URIs should have the form
+    `"s3://mybucket/myprefix/train"`.
 
-    b. Download web-scraped images into the appropriate directories.  This did
-    not work well for me due to endless image quality issues; I recommend (a)
-    instead, but including here just in case:
+    This is not supervised learning so labels are not used for training, but
+    it can still be useful to reserve some validation data to experiment with
+    after training anyway.  Whether locally or in S3, I find the following
+    directory structure helpful.  Note the data generator reading the files
+    will combine all subdirectories of files together, so `cat` and `beachball`
+    images will be mixed together in the validation dataset:
 
-    `python misc/download_images_bing.py`
-    This will create the following directory structure to hold the downloaded images.
-    (The "cat" subdirectory is because the search keyword was "cat" - you can of
-    course change that, and the unsupervised learning doesn't care what the subdirs
-    are within "train" and "val" anway, it just globs them together.)
-    None of these directories needs to exist already - the script can create them.
-
-    Warning - I found a lot of web-scraping packages don't seem to work anymore
-    (search engine APIs seem to evolve quickly/regularly).  The Bing one
-    technically still works but does not provide very good/reliable photos.
-    Honestly this is what made me shift to using pre-made image datasets myself;
-    really the quality/consistency is better too.
     ```
     data/
         train/
             cat/
         val/
-            cat/
-            beachball/   <-- these show up as outliers in gaussian latent points
+            beachball/   <-- these generally show up as outliers in gaussian latent points
+            cat/         <-- these generally don't
     ```
 
 ### B. To run the training

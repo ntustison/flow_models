@@ -1,8 +1,11 @@
 """AWS based file utililities for convenience in Tensorflow/Keras modeling"""
+import os
 import re
-import tensorflow as tf
-import numpy as np
+
 import boto3
+import numpy as np
+from PIL import Image
+import tensorflow as tf
 
 
 s3_paginator = boto3.client('s3').get_paginator('list_objects_v2')
@@ -69,7 +72,7 @@ class S3ImageDataGenerator:
     local filesystem.
 
     Attributes (defaults are 0.0 when not specified otherwise):
-        rescale (float): Rescaling factor. Defaults to None.
+        rescale (float): Rescaling factor (not random!). Defaults to None.
         horizontal_flip (bool): Randomly flip inputs horizontally. Default=False
         zoom_range (float): Range for random zoom between [1-zoom_range, 1+zoom_range].
         shear_range (float): Shear Intensity (Shear angle in counter-clockwise direction as radians)
@@ -116,17 +119,17 @@ class S3ImageDataGenerator:
         self.width_shift_range = width_shift_range
         self.height_shift_range = height_shift_range
 
-    def flow_from_directory(self, s3_uri, target_size=(256, 256),
+    def flow_from_directory(self, uri, target_size=(256, 256),
                             batch_size=32, class_mode='binary', shuffle=True,
                             save_format=['png', 'jpg']):
         """
-        Generates batches of augmented/normalized data from S3 URI (incl subdirs).
+        Generates batches of augmented/normalized data from URI (incl subdirs).
         Designed to be drop-in replacement (or close) for
         ImageDataGenerator.flow_from_directory() at least to the extent of
         the parameters implemented here.
 
         Parameters:
-            s3_uri (str): S3 URI in the form "s3://<bucketname>/<prefix>"
+            uri (str): S3 URI in the form "s3://<bucketname>/<prefix>" or filesystem URI like "subdir1/subdir2"
             extensions (list of str): List of acceptable image extensions.
             target_size (tuple of int): The dimensions to which all images found will be resized.
             batch_size (int): Size of the batch of images to return with each iteration.
@@ -155,23 +158,27 @@ class S3ImageDataGenerator:
             )
         """
 
-        # Validating input args (of course should add more validations)
-        if s3_uri[:5] == "s3://":
-            bucket_name, _, prefix = s3_uri[5:].partition('/')
-        else:
-            raise ValueError("s3_uri should start with s3://...")
-        # TODO: add a validation to check if bucket_name exists
-
-        # Get list of all file paths (but don't load the files themselves).
+        # If "s3://" prepends uri then get files from S3, otherwise get from filesystem
+        # Just getting list of all file paths here, but not loading files themselves yet.
         # This list could be very long but its elements are only short strings.
-        s3 = boto3.client('s3')
-        response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
-        all_keys = [obj['Key'] for obj in response['Contents'] if obj['Key'].endswith(tuple(save_format))]
+        if uri[:5] == "s3://":
+            # Get image paths from S3 bucket
+            bucket_name, _, prefix = uri[5:].partition('/')
+            s3 = boto3.client('s3')
+            response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+            all_keys = [obj['Key'] for obj in response['Contents'] if obj['Key'].endswith(tuple(save_format))]
+        else:
+            # Get image paths from filesystem
+            all_keys = []
+            for root, dirs, files in os.walk(uri):
+                for file in files:
+                    if file.endswith(tuple(save_format)):
+                        all_keys.append(os.path.join(root, file))
 
         # Experimenting with s3keys generator rather than getting all file keys at once like above.
         # (But this prevents shuffle, whereas all_keys above is just long list of strings.)
         # Considering using this automatically when shuffle=False, to handle very large datasets.
-        # all_keys = s3keys(s3_uri, start_after='', extensions=['png', 'jpg'], cycle=False)
+        # all_keys = s3keys(uri, start_after='', extensions=['png', 'jpg'], cycle=False)
 
         def generator():
             # Loop indefinitely to yield as many data-augmented images as desired:
@@ -184,8 +191,13 @@ class S3ImageDataGenerator:
                     batch_images = []
                     # batch_labels = []
                     for key in batch_keys:
-                        # (the regexp expression below gets bucketname from s3_uri)
-                        img = self.download_image_from_s3(re.match(r's3://([^/]+)/?', s3_uri).group(1), key)
+                        if uri[:5] == "s3://":
+                            # Get image from S3 bucket
+                            # (the regexp expression below gets bucketname from uri)
+                            img = self.download_image_from_s3(re.match(r's3://([^/]+)/?', uri).group(1), key)
+                        else:
+                            # Get image from filesystem
+                            img = Image.open(key)
                         img = self.preprocess_image(img, target_size)
                         batch_images.append(img)
                         # TODO: finish implementing/debugging remaining class_modes:
