@@ -38,17 +38,25 @@ check-codebuild-role-exists:
 
 
 
-create-batch-role: check-batch-role-exists
+create-batch-sec-policies:
+	@aws iam create-policy --policy-name BatchS3AccessPolicy \
+		--policy-document file://awsbatch-support/s3-access-policy.json
+	@aws iam create-policy --policy-name BatchCloudWatchLogsPolicy \
+		--policy-document file://awsbatch-support/batch-cloudwatch-policy.json
+
+create-batch-service-role: check-batch-role-exists
 	# generates AWSBATCH_SERVICE_ROLE_ARN needed for create-compute-environment.
 	# read it from output and put into AWSBATCH_SERVICE_ROLE_ARN env var.
 	@echo "Creating role AWSBatchServiceRole..."
-	@aws iam create-role \
-		--role-name AWSBatchServiceRole --no-cli-pager \
+	@aws iam create-role --role-name AWSBatchServiceRole --no-cli-pager \
 		--assume-role-policy-document file://awsbatch-support/batch-trust-policy.json
 	@echo "Role AWSBatchServiceRole created successfully."
-	@aws iam attach-role-policy \
-		--role-name AWSBatchServiceRole \
+	@aws iam attach-role-policy --role-name AWSBatchServiceRole \
 		--policy-arn arn:aws:iam::aws:policy/AWSBatchFullAccess
+	@aws iam attach-role-policy --role-name AWSBatchServiceRole \
+		--policy-arn arn:aws:iam::$(AWS_ACCT_ID):policy/BatchS3AccessPolicy
+	@aws iam attach-role-policy --role-name AWSBatchServiceRole \
+		--policy-arn arn:aws:iam::$(AWS_ACCT_ID):policy/BatchCloudWatchLogsPolicy
 	@echo "AWSBatchFullAccess successfully attached to role AWSBatchServiceRole."
 	# TODO: Check if a policy with less access than AWSBatchFullAccess would work.
 
@@ -61,22 +69,53 @@ check-batch-role-exists:
 		exit 1; \
 	fi
 
+create-batch-instance-profile:
+	@aws iam create-role --role-name BatchInstanceRole --no-cli-pager \
+		--assume-role-policy-document file://awsbatch-support/instance-trust-policy.json
+	@aws iam attach-role-policy --role-name BatchInstanceRole \
+		--policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+	@aws iam create-instance-profile --instance-profile-name BatchInstanceProfile
+	@aws iam add-role-to-instance-profile --instance-profile-name BatchInstanceProfile \
+		--role-name BatchInstanceRole
+
+	#@aws iam get-instance-profile --instance-profile-name BatchInstanceProfile
 
 
+
+# Create compute environment - g4dn.xlarge have 4 vCpus so pinning vCpus to 4.
+# You will need an existing AWS subnet within your VPC and a simple security
+# group with no inbound rules and default outbound 0.0.0.0; name this group
+# something like aws-batch-instance, add it to the inbound rules of mlflow
+# instance, and set env vars ${AWSBATCH_SUBNET} and ${AWSBATCH_SG} to use here.
+# To create sg via cli instead of manually in aws dashboard:
+# aws ec2 create-security-group --group-name aws-batch-instance \
+#  --description "Security group for AWS Batch compute" --vpc-id your-vpc-id
 create-compute-env:
-	# Create compute environment
-	aws batch create-compute-environment --compute-environment-name GPUEnvironment --type MANAGED \
-		--compute-resources type=EC2,allocationStrategy=BEST_FIT_PROGRESSIVE,minvCpus=4,maxvCpus=4,desiredvCpus=4,instanceTypes=g4dn.xlarge,subnets=subnet-12345,securityGroupIds=sg-12345 \
+	aws batch create-compute-environment --compute-environment-name GPUEnvironment \
+	   	--type MANAGED \
+		--compute-resources type=EC2,allocationStrategy=BEST_FIT_PROGRESSIVE,minvCpus=4,maxvCpus=4,desiredvCpus=4,instanceTypes=g4dn.xlarge,subnets=${AWSBATCH_SUBNET},securityGroupIds=${AWSBATCH_SG},instanceRole=arn:aws:iam::$(AWS_ACCT_ID):instance-profile/BatchInstanceProfile \
 		--service-role arn:aws:iam::$(AWS_ACCT_ID):role/AWSBatchServiceRole
 
 	# to set up to use much-cheaper spot instances later:
-	# aws batch create-compute-environment --compute-environment-name GPUEnvironment --type MANAGED \
-	#	--compute-resources type=SPOT,allocationStrategy=SPOT_CAPACITY_OPTIMIZED,minvCpus=4,maxvCpus=4,desiredvCpus=4,instanceTypes=g4dn.xlarge,subnets=subnet-12345,securityGroupIds=sg-12345,spotIamFleetRole=arn:aws:iam::$(AWS_ACCT_ID):role/AWSBatchServiceRole \
+	# aws batch create-compute-environment --compute-environment-name GPUEnvironment \
+	#   --type MANAGED \
+	#	--compute-resources type=SPOT,allocationStrategy=SPOT_CAPACITY_OPTIMIZED,\
+	#	  minvCpus=4,maxvCpus=4,desiredvCpus=4,instanceTypes=g4dn.xlarge,\
+	#	  subnets=${AWSBATCH_SUBNET},securityGroupIds=${AWSBATCH_SG},\
+	#	  spotIamFleetRole=arn:aws:iam::$(AWS_ACCT_ID):role/AWSBatchServiceRole \
 	#	--service-role arn:aws:iam::$(AWS_ACCT_ID):role/AWSBatchServiceRole
+
+	@aws batch describe-compute-environments --compute-environments GPUEnvironment
+
+delete-compute-env:
+	@aws batch update-compute-environment --compute-environment GPUEnvironment --state DISABLED
+	@aws batch delete-compute-environment --compute-environment GPUEnvironment
 
 create-job-queue:
 	# Create job queue
-	aws batch create-job-queue --job-queue-name GPUJobQueue --compute-environment-order order=1,computeEnvironment=GPUEnvironment --priority 1
+	aws batch create-job-queue --job-queue-name GPUJobQueue \
+		--compute-environment-order order=1,computeEnvironment=GPUEnvironment \
+		--priority 1
 
 register-job-definition:
 	# Register job definition
