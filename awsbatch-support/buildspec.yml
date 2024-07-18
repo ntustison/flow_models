@@ -1,15 +1,18 @@
 version: 0.2
+env:
+  variables:
+    ECR_REPO_URI: ${ECR_REPO_URI}
+
 phases:
   pre_build:
     commands:
       - $(aws ecr get-login --no-include-email --region $AWS_REGION)
-      - REPOSITORY_URI=<your-ecr-repository-uri>
       - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
   build:
     commands:
-      - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
-      - docker tag $REPOSITORY_URI:$IMAGE_TAG $REPOSITORY_URI:latest
+      - docker build -t $ECR_REPO_URI:$IMAGE_TAG .
+      - docker tag $ECR_REPO_URI:$IMAGE_TAG $ECR_REPO_URI:latest
   post_build:
     commands:
-      - docker push $REPOSITORY_URI:$IMAGE_TAG
-      - docker push $REPOSITORY_URI:latest
+      - docker push $ECR_REPO_URI:$IMAGE_TAG
+      - docker push $ECR_REPO_URI:latest

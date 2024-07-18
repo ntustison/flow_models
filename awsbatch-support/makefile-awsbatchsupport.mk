@@ -1,5 +1,6 @@
 ECR_REPO = flow_models
-ECR_REPO_URI = ${AWS_ACCT_ID}.dkr.ecr.$(AWS_REGION).amazonaws.com/$(ECR_REPO)
+export ECR_REPO_URI = ${AWS_ACCT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}
+
 
 list-ecr-repos:
 	# List the repo in ECR to confirm this one is there after create-ecr-repo
@@ -7,9 +8,7 @@ list-ecr-repos:
 
 create-ecr-repo:
 	# Create the repo in ECR where this app's docker images will be held on AWS
-	aws ecr create-repository --repository-name $(ECR_REPO) --region $(AWS_REGION)
-
-
+	aws ecr create-repository --repository-name ${ECR_REPO} --region ${AWS_REGION}
 
 create-codebuild-role: check-codebuild-role-exists
 	# generates CODEBUILD_SERVICE_ROLE_ARN needed for create-project.
@@ -36,39 +35,6 @@ check-codebuild-role-exists:
 		exit 1; \
 	fi
 
-
-
-create-batch-sec-policies:
-	@aws iam create-policy --policy-name BatchS3AccessPolicy \
-		--policy-document file://awsbatch-support/s3-access-policy.json
-	@aws iam create-policy --policy-name BatchCloudWatchLogsPolicy \
-		--policy-document file://awsbatch-support/batch-cloudwatch-policy.json
-
-create-batch-service-role: check-batch-role-exists
-	# generates AWSBATCH_SERVICE_ROLE_ARN needed for create-compute-environment.
-	# read it from output and put into AWSBATCH_SERVICE_ROLE_ARN env var.
-	@echo "Creating role AWSBatchServiceRole..."
-	@aws iam create-role --role-name AWSBatchServiceRole --no-cli-pager \
-		--assume-role-policy-document file://awsbatch-support/batch-trust-policy.json
-	@echo "Role AWSBatchServiceRole created successfully."
-	@aws iam attach-role-policy --role-name AWSBatchServiceRole \
-		--policy-arn arn:aws:iam::aws:policy/AWSBatchFullAccess
-	@aws iam attach-role-policy --role-name AWSBatchServiceRole \
-		--policy-arn arn:aws:iam::$(AWS_ACCT_ID):policy/BatchS3AccessPolicy
-	@aws iam attach-role-policy --role-name AWSBatchServiceRole \
-		--policy-arn arn:aws:iam::$(AWS_ACCT_ID):policy/BatchCloudWatchLogsPolicy
-	@echo "AWSBatchFullAccess successfully attached to role AWSBatchServiceRole."
-	# TODO: Check if a policy with less access than AWSBatchFullAccess would work.
-
-
-check-batch-role-exists:
-	# supports create-role with a verification check
-	@aws iam get-role --role-name AWSBatchServiceRole > /dev/null 2>&1; \
-	if [ $$? -eq 0 ]; then \
-		echo "Role AWSBatchServiceRole already exists. Skipping creation."; \
-		exit 1; \
-	fi
-
 create-batch-instance-profile:
 	@aws iam create-role --role-name BatchInstanceRole --no-cli-pager \
 		--assume-role-policy-document file://awsbatch-support/instance-trust-policy.json
@@ -85,16 +51,22 @@ create-batch-instance-profile:
 # Create compute environment - g4dn.xlarge have 4 vCpus so pinning vCpus to 4.
 # You will need an existing AWS subnet within your VPC and a simple security
 # group with no inbound rules and default outbound 0.0.0.0; name this group
-# something like aws-batch-instance, add it to the inbound rules of mlflow
-# instance, and set env vars ${AWSBATCH_SUBNET} and ${AWSBATCH_SG} to use here.
+# something like aws-batch-instance, add it to the inbound rules of your mlflow
+# instance, and set env vars ${AWSBATCH_SUBNET} and ${AWSBATCH_SG} in your env
+# so this present script can use them.
 # To create sg via cli instead of manually in aws dashboard:
 # aws ec2 create-security-group --group-name aws-batch-instance \
 #  --description "Security group for AWS Batch compute" --vpc-id your-vpc-id
 create-compute-env:
-	aws batch create-compute-environment --compute-environment-name GPUEnvironment \
-	   	--type MANAGED \
+	aws batch create-compute-environment --compute-environment-name GPUEnvironment --type MANAGED \
 		--compute-resources type=EC2,allocationStrategy=BEST_FIT_PROGRESSIVE,minvCpus=4,maxvCpus=4,desiredvCpus=4,instanceTypes=g4dn.xlarge,subnets=${AWSBATCH_SUBNET},securityGroupIds=${AWSBATCH_SG},instanceRole=arn:aws:iam::$(AWS_ACCT_ID):instance-profile/BatchInstanceProfile \
-		--service-role arn:aws:iam::$(AWS_ACCT_ID):role/AWSBatchServiceRole
+		--service-role ""
+	    # Blank string tells AWSbatch to auto-generate the service role as
+		# a "service-linked-role".
+
+
+		# --compute-resources type=EC2,allocationStrategy=BEST_FIT_PROGRESSIVE,minvCpus=4,maxvCpus=4,desiredvCpus=4,instanceTypes=g4dn.xlarge,subnets=${AWSBATCH_SUBNET},securityGroupIds=${AWSBATCH_SG},instanceRole=arn:aws:iam::$(AWS_ACCT_ID):instance-profile/BatchInstanceProfile \
+		# --service-role arn:aws:iam::$(AWS_ACCT_ID):role/AWSBatchServiceRole
 
 	# to set up to use much-cheaper spot instances later:
 	# aws batch create-compute-environment --compute-environment-name GPUEnvironment \
@@ -108,7 +80,7 @@ create-compute-env:
 	@aws batch describe-compute-environments --compute-environments GPUEnvironment
 
 delete-compute-env:
-	@aws batch update-compute-environment --compute-environment GPUEnvironment --state DISABLED
+	@aws batch update-compute-environment --compute-environment GPUruns --state DISABLED
 	@aws batch delete-compute-environment --compute-environment GPUEnvironment
 
 create-job-queue:
@@ -118,22 +90,23 @@ create-job-queue:
 		--priority 1
 
 register-job-definition:
-	# Register job definition
-	aws batch register-job-definition --cli-input-json file://awsbatch-support/job_definition.json
-
+	# Register job definition.  The aws command requires an ECR_REPO_URI in this json
+	# file which varies per user, so before submitting json file, substitute in the
+	# $ECR_REPO_URI environment variable.
+	envsubst < awsbatch-support/job_definition_template.json > /tmp/job-definition.json \
+	&& aws batch register-job-definition --cli-input-json file:///tmp/job-definition.json
+	#rm /tmp/job_definition.json
 
 
 create-project: check-service-role
 	# gets code from github branch, builds docker image, and pushes it to ECR repo
 	aws codebuild create-project \
-	    --name "ExampleProject" \
-	    --source "type=GITHUB,location=https://github.com/username/repository.git,buildSpec=buildspec.yml" \
+	    --name "flow_models_build" \
+		--source "type=GITHUB,location=https://github.com/aganse/flow_models.git,buildSpec=buildspec.yml" \
 	    --artifacts "type=NO_ARTIFACTS" \
 	    --environment "type=LINUX_CONTAINER,image=aws/codebuild/standard:4.0,computeType=BUILD_GENERAL1_SMALL" \
-		--service-role arn:aws:iam::$(AWS_ACCT_ID):role/CodeBuildServiceRole
-
-	    # or if need auth later:
-	    # --source "type=GITHUB,location=https://github.com/username/repository.git,buildSpec=buildspec.yml,auth={type=OAUTH,resource=token}" \
+		--service-role arn:aws:iam::${AWS_ACCT_ID}:role/CodeBuildServiceRole
+	    # (if needed auth later, we can append ",auth={type=OAUTH,resource=token}" to --source arg)
 
 check-service-role:
 	# supports create-project with a verification check
@@ -193,7 +166,7 @@ build-gpu:
 	# This is why the CodeBuild-based build process was created; I mainly use that instead.
 	# (e.g. this literally won't even build at all on my lower-end cpu-only instance, but
 	# it builds just fine on my heavier, gpu-based instance.)
-	docker build --build-arg TENSORFLOW_PKG=tensorflow==2.12.0 -t $(ECR_REPO):$(version)-gpu .
+	docker build --build-arg TENSORFLOW_PKG=tensorflow==2.12.0 -t ${ECR_REPO}:${version}-gpu .
 
 push-to-ecr:
 	# Push docker image to AWS ECR - only relevant to locally-built images.  Rarely used.
@@ -203,9 +176,9 @@ ifndef MODE
 	@echo "The MODE determines whether the CPU or GPU version of the app image get pushed to ECR."
 	@echo                                                                                
 endif                                                                                    
-	docker tag $(ECR_REPO):$(version)-$${MODE} $(ECR_REPO_URI):latest  # tag the cpu or gpu image as 'latest'
-	aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin $(ECR_REPO_URI)  # login to ECR
-	docker push $(ECR_REPO_URI):latest  # push the image
+	docker tag ${ECR_REPO}:${version}-$${MODE} ${ECR_REPO_URI}:latest  # tag the cpu or gpu image as 'latest'
+	aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin ${ECR_REPO_URI}  # login to ECR
+	docker push ${ECR_REPO_URI}:latest  # push the image
 
 
 # ensures all entries run every time since these aren't files

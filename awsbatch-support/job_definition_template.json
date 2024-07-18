@@ -1,8 +1,10 @@
 {
   "jobDefinitionName": "GPUJobDefinition",
   "type": "container",
+  "retryStrategy": {
+    "attempts": 1
+  },
   "containerProperties": {
-    "image": "your-ecr-repo-uri:latest",
     "vcpus": 4,
     "memory": 16000,
     "resourceRequirements": [
@@ -11,15 +13,13 @@
         "value": "1"
       }
     ],
-    "command": ["python3", "testing.py"],
     "environment": [
       {
         "name": "AWS_DEFAULT_REGION",
         "value": "us-west-2"
       }
-    ]
-  },
-  "retryStrategy": {
-    "attempts": 1
+    ],
+    "image": "${ECR_REPO_URI}:latest",
+    "command": ["python3", "testing.py"]
   }
 }
