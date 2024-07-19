@@ -18,6 +18,11 @@ create-codebuild-role: check-codebuild-role-exists
 		--role-name CodeBuildServiceRole --no-cli-pager \
 		--assume-role-policy-document file://awsbatch-support/codebuild-trust-policy.json
 	@echo "Role CodeBuildServiceRole created successfully."
+	@aws iam create-policy --policy-name CodeBuildCloudWatchPolicy \
+		--policy-document file://awsbatch-support/codebuild-cloudwatch-policy.json
+	@aws iam attach-role-policy --role-name CodeBuildServiceRole \
+		--policy-arn arn:aws:iam::${AWS_ACCT_ID}:policy/CodeBuildCloudWatchPolicy
+	@echo "CodeBuildCloudWatchPolicy successfully attached to role CodeBuildServiceRole."
 	@aws iam attach-role-policy \
 		--role-name CodeBuildServiceRole \
 		--policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser
@@ -102,7 +107,7 @@ create-project: check-service-role
 	# gets code from github branch, builds docker image, and pushes it to ECR repo
 	aws codebuild create-project \
 	    --name "flow_models_build" \
-		--source "type=GITHUB,location=https://github.com/aganse/flow_models.git,buildSpec=buildspec.yml" \
+		--source "type=GITHUB,location=https://github.com/aganse/flow_models.git,buildspec=awsbatch-support/buildspec.yml" \
 	    --artifacts "type=NO_ARTIFACTS" \
 	    --environment "type=LINUX_CONTAINER,image=aws/codebuild/standard:4.0,computeType=BUILD_GENERAL1_SMALL" \
 		--service-role arn:aws:iam::${AWS_ACCT_ID}:role/CodeBuildServiceRole
@@ -115,7 +120,11 @@ check-service-role:
 		exit 1; \
 	fi
 
+run-build:
+	@aws codebuild start-build --project-name flow_models_build
 
+	# and to check build status in cli:
+	# aws codebuild batch-get-builds --ids <arn:etc.etc.etc from start-build output, or from console>
 
 run-batch: create-compute-env create-job-queue register-job-definition
 	# Run the batch job on AWS remote GPU instance

@@ -2,6 +2,7 @@ version: 0.2
 env:
   variables:
     ECR_REPO_URI: ${ECR_REPO_URI}
+    MODE: gpu
 
 phases:
   pre_build:
@@ -10,9 +11,12 @@ phases:
       - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
   build:
     commands:
-      - docker build -t $ECR_REPO_URI:$IMAGE_TAG .
-      - docker tag $ECR_REPO_URI:$IMAGE_TAG $ECR_REPO_URI:latest
+      - echo imagestring should show ECR_REPO_URI,IMAGE_TAG - ${ECR_REPO_URI},${IMAGE_TAG}
+      - docker info | head -26
+      - docker ps
+      - docker build --build-arg TENSORFLOW_PKG=tensorflow==2.12.0 -t ${ECR_REPO_URI}:${IMAGE_TAG}-${MODE} .
+	  - docker tag ${ECR_REPO_URI}:${IMAGE_TAG}-${MODE} ${ECR_REPO_URI}:latest
   post_build:
     commands:
-      - docker push $ECR_REPO_URI:$IMAGE_TAG
-      - docker push $ECR_REPO_URI:latest
+      - docker push ${ECR_REPO_URI}:${IMAGE_TAG}-${MODE}
+      - docker push ${ECR_REPO_URI}:latest
