@@ -1,5 +1,5 @@
 # Makefile for flow_models
-export DEVICE=cpu  # cpu or gpu
+export DEVICE=gpu
 
 # Environment variables AWS_ACCT_ID and AWS_REGION are expected to exist
 # (check env vars before importing support makefile)
