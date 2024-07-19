@@ -1,4 +1,5 @@
 # Makefile for flow_models
+export DEVICE=cpu  # cpu or gpu
 
 # Environment variables AWS_ACCT_ID and AWS_REGION are expected to exist
 # (check env vars before importing support makefile)
@@ -33,12 +34,17 @@ unittests:
 	python -m unittest -v                                             
 
 build-cpu:
-	# For CPU package of TF for dev/testing on local instance - for testing
+	# Building with CPU package of TF for dev/testing on a light-compute instance.
 	docker build --build-arg TENSORFLOW_PKG=tensorflow-cpu==2.12.0 -t $(ECR_REPO):$(version)-cpu .
 
+build-gpu:
+	# Building with GPU package of TF - requires heavier-compute instance to build.
+	# For example building on the same g4dn.xlarge gpu instance it gets run on.
+	docker build --build-arg TENSORFLOW_PKG=tensorflow==2.12.0 -t ${ECR_REPO}:$(version)-gpu .
+
 run-local:
-	# Run/test the batch job on AWS local CPU-only instance - for testing
-	docker run --rm -it flow_models:$(version)-cpu
+	# Run/test the batch job on local instance
+	docker run --rm -it flow_models:$(version)-${DEVICE}
 
 build-and-push-local-image: build-gpu push-to-ecr
 

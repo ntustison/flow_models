@@ -109,7 +109,7 @@ create-project: check-service-role
 	    --name "flow_models_build" \
 		--source "type=GITHUB,location=https://github.com/aganse/flow_models.git,buildspec=awsbatch-support/buildspec.yml" \
 	    --artifacts "type=NO_ARTIFACTS" \
-	    --environment "type=LINUX_CONTAINER,image=aws/codebuild/standard:4.0,computeType=BUILD_GENERAL1_SMALL" \
+	    --environment "type=LINUX_CONTAINER,image=aws/codebuild/standard:4.0,computeType=BUILD_GENERAL1_SMALL,environmentVariables=[{name='ECR_REPO_URI', value='${ECR_REPO_URI}'},{name='DEVICE', value='${DEVICE}'}]" \
 		--service-role arn:aws:iam::${AWS_ACCT_ID}:role/CodeBuildServiceRole
 	    # (if needed auth later, we can append ",auth={type=OAUTH,resource=token}" to --source arg)
 
@@ -167,25 +167,17 @@ delete-roles:
 	@aws iam delete-role --role-name AWSBatchServiceRole
 
 
-# Last two macros below are rarely used; only realistically run on dedicated GPU instance:
-
-build-gpu:
-	# Note generally this macro would not be used at all, because it builds locally and
-	# this is a super intentive install/build due to the gpu version of tensorflow.
-	# This is why the CodeBuild-based build process was created; I mainly use that instead.
-	# (e.g. this literally won't even build at all on my lower-end cpu-only instance, but
-	# it builds just fine on my heavier, gpu-based instance.)
-	docker build --build-arg TENSORFLOW_PKG=tensorflow==2.12.0 -t ${ECR_REPO}:${version}-gpu .
 
 push-to-ecr:
-	# Push docker image to AWS ECR - only relevant to locally-built images.  Rarely used.
-ifndef MODE
+	# Push docker image to AWS ECR - eg could build it on g4dn.xlarge instance and push to ECR,
+	# then after that could run image in AWS Batch for future runs.
+ifndef DEVICE
 	@echo "This makefile macro must be called as:"                                       
-	@echo "  make push-to-ecr MODE=GPU   # or MODE=CPU"
-	@echo "The MODE determines whether the CPU or GPU version of the app image get pushed to ECR."
+	@echo "  make push-to-ecr DEVICE=gpu   # or DEVICE=cpu"
+	@echo "The DEVICE determines whether the CPU or GPU version of the app image gets pushed to ECR."
 	@echo                                                                                
 endif                                                                                    
-	docker tag ${ECR_REPO}:${version}-$${MODE} ${ECR_REPO_URI}:latest  # tag the cpu or gpu image as 'latest'
+	docker tag ${ECR_REPO}:${version}-$${DEVICE} ${ECR_REPO_URI}:latest  # tag the cpu or gpu image as 'latest'
 	aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin ${ECR_REPO_URI}  # login to ECR
 	docker push ${ECR_REPO_URI}:latest  # push the image
 
@@ -193,5 +185,4 @@ endif
 # ensures all entries run every time since these aren't files
 .PHONY: create-role check-role-exists create-project check-service-role \
 	create-ecr-repo list-ecr-repos create-compute-env create-job-queue \
-	register-job-definition run-batch check-job-status cancel-job \
-	build-gpu push-to-ecr
+	register-job-definition run-batch check-job-status cancel-job push-to-ecr
