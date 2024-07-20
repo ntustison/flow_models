@@ -54,39 +54,44 @@ create-batch-instance-profile:
 
 
 # Create compute environment - g4dn.xlarge have 4 vCpus so pinning vCpus to 4.
-# You will need an existing AWS subnet within your VPC and a simple security
-# group with no inbound rules and default outbound 0.0.0.0; name this group
-# something like aws-batch-instance, add it to the inbound rules of your mlflow
-# instance, and set env vars ${AWSBATCH_SUBNET} and ${AWSBATCH_SG} in your env
-# so this present script can use them.
+# Assumes pre-existing AWS subnet within your VPC, and a simple security group
+# with no inbound rules and default outbound 0.0.0.0; name this group something
+# like aws-batch-instance, add to the inbound rules of your mlflow instance,
+# and set env vars ${AWSBATCH_SUBNET} and ${AWSBATCH_SG} in your env so this
+# script can use them below.
 # To create sg via cli instead of manually in aws dashboard:
-# aws ec2 create-security-group --group-name aws-batch-instance \
-#  --description "Security group for AWS Batch compute" --vpc-id your-vpc-id
+# aws ec2 create-security-group --group-name aws-batch-instance --description "Security group for AWS Batch compute" --vpc-id your-vpc-id
 create-compute-env:
 	aws batch create-compute-environment --compute-environment-name GPUEnvironment --type MANAGED \
 		--compute-resources type=EC2,allocationStrategy=BEST_FIT_PROGRESSIVE,minvCpus=4,maxvCpus=4,desiredvCpus=4,instanceTypes=g4dn.xlarge,subnets=${AWSBATCH_SUBNET},securityGroupIds=${AWSBATCH_SG},instanceRole=arn:aws:iam::$(AWS_ACCT_ID):instance-profile/BatchInstanceProfile \
 		--service-role ""
-	    # Blank string tells AWSbatch to auto-generate the service role as
-		# a "service-linked-role".
-
-
-		# --compute-resources type=EC2,allocationStrategy=BEST_FIT_PROGRESSIVE,minvCpus=4,maxvCpus=4,desiredvCpus=4,instanceTypes=g4dn.xlarge,subnets=${AWSBATCH_SUBNET},securityGroupIds=${AWSBATCH_SG},instanceRole=arn:aws:iam::$(AWS_ACCT_ID):instance-profile/BatchInstanceProfile \
-		# --service-role arn:aws:iam::$(AWS_ACCT_ID):role/AWSBatchServiceRole
+	    # Blank string tells AWSbatch to auto-generate the service role AWSBatchServiceRole as a service-linked-role.
 
 	# to set up to use much-cheaper spot instances later:
-	# aws batch create-compute-environment --compute-environment-name GPUEnvironment \
-	#   --type MANAGED \
-	#	--compute-resources type=SPOT,allocationStrategy=SPOT_CAPACITY_OPTIMIZED,\
-	#	  minvCpus=4,maxvCpus=4,desiredvCpus=4,instanceTypes=g4dn.xlarge,\
-	#	  subnets=${AWSBATCH_SUBNET},securityGroupIds=${AWSBATCH_SG},\
-	#	  spotIamFleetRole=arn:aws:iam::$(AWS_ACCT_ID):role/AWSBatchServiceRole \
-	#	--service-role arn:aws:iam::$(AWS_ACCT_ID):role/AWSBatchServiceRole
+	# aws batch create-compute-environment --compute-environment-name GPUEnvironment --type MANAGED \
+	#	--compute-resources type=SPOT,allocationStrategy=SPOT_CAPACITY_OPTIMIZED,minvCpus=4,maxvCpus=4,desiredvCpus=4,instanceTypes=g4dn.xlarge,subnets=${AWSBATCH_SUBNET},securityGroupIds=${AWSBATCH_SG},spotIamFleetRole=arn:aws:iam::$(AWS_ACCT_ID):role/AWSBatchServiceRole \
+    #   --service-role ""
 
 	@aws batch describe-compute-environments --compute-environments GPUEnvironment
 
-delete-compute-env:
-	@aws batch update-compute-environment --compute-environment GPUruns --state DISABLED
-	@aws batch delete-compute-environment --compute-environment GPUEnvironment
+
+list-compute-resources:
+	@-aws batch describe-compute-environments --query 'computeEnvironments[*].[status, computeEnvironmentName, statusReason]' --output json | jq -r '["compute-env"] + .[] | @tsv'
+	@-aws batch describe-job-definitions --query 'jobDefinitions[*].[status, jobDefinitionName, revision]' --output json | jq -r '.[] | ["job-definition"] + . | @tsv'
+	@-aws autoscaling describe-auto-scaling-groups --query 'AutoScalingGroups[*].[Status, HealthStatus, AutoScalingGroupName]' --output json | jq -r '["autoscale-group"] + .[] | @tsv'
+	@-aws batch describe-job-queues --query 'jobQueues[*].[state, jobQueueName]' --output json | jq -r '["job-queue"] + .[] | @tsv'
+	@-aws ec2 describe-instances --query 'Reservations[*].Instances[*].[State.Name, InstanceId, LaunchTime, Tags[?Key==`Name`].Value | [0]]' --output json | jq -r '.[] | ["ec2-instance"] + .[] | @tsv'
+
+delete-compute-resources1:
+	@-aws batch update-job-queue --job-queue GPUJobQueue --state DISABLED
+	@-aws batch delete-job-queue --job-queue GPUJobQueue
+	@-aws batch deregister-job-definition --job-definition GPUJobDefinition:1  # assumes revision 1 here but use whatever seen in describe-job-definitions
+	@-aws batch update-compute-environment --compute-environment GPUEnvironment --state DISABLED
+
+# wait for the state of update-compute-resources1 to settle first, then run this:
+delete-compute-resources2:
+	@-aws batch delete-compute-environment --compute-environment GPUEnvironment
+
 
 create-job-queue:
 	# Create job queue

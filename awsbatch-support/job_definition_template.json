@@ -19,6 +19,9 @@
         "value": "us-west-2"
       }
     ],
+    "timeout": {
+      "attemptDurationSeconds": 3600
+    },
     "image": "${ECR_REPO_URI}:latest",
     "command": ["python3", "testing.py"]
   }
