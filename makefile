@@ -48,18 +48,12 @@ run-local:
 
 build-and-push-local-image: build-gpu push-to-ecr
 
-define-ecr-repo: create-ecr-repo list-ecr-repos  # very rarely
+build-and-push-remote-image: create-codebuild-project run-build
 
-define-roles: create-codebuild-role create-batch-role list-roles  # very rarely
+define-the-compute: create-compute-env create-job-queue register-job-definition
 
-define-the-compute: create-compute-env create-job-queue register-job-definition  # rarely
+run-job: run-batchjob
 
-build-image-and-run-job: create-project run-batch  # regularly
-
-# Occasional commands to run manually:
-# check-job-status, cancel-job
-# list-roles
-# delete-roles
 
 
 # ensures all entries run every time since these aren't files
