@@ -1,6 +1,14 @@
 ECR_REPO = flow_models
 export ECR_REPO_URI = ${AWS_ACCT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}
 
+what-to-do:
+	@echo "once/rarely:    create-ecr-repo create-codebuild-role create-batch-instance-profile"
+	@echo "sometimes:      create-codebuild-project run-build"
+	@echo "sometimes:      create-compute-env create-job-queue register-job-definition"
+	@echo "more often:     run-batchjob"
+	@echo "image checks:   list-ecr-repos"
+	@echo "compute checks: list-compute-resources delete-compute-resources1 delete-compute-resources2"
+	@echo "job checks:     list-job-status JOBID=12345678"
 
 create-ecr-repo:
 	# Create the repo in ECR where this app's docker images will be held on AWS
@@ -160,14 +168,14 @@ delete-compute-resources2:
 	# Wait for the state of update-compute-resources1 to settle first, then run this:
 	@-aws batch delete-compute-environment --compute-environment GPUEnvironment
 
-check-job-status:
-	# Check status of a run-batch job that's still in progress, based on JOBID from run-batch
+list-job-status:
+	# List status of a run-batch job that's still in progress, based on JOBID from run-batch
 ifndef JOBID
 	@echo "This makefile macro must be called as:"                                       
 	@echo "  make check-job-status JOBID=12345678  # comes from output of `make run-batch`"
 	@echo                                                                                
 endif                                                                                    
-	@aws batch describe-jobs --jobs $${JOBID}
+	@aws batch describe-jobs --jobs $${JOBID} --no-cli-pager --output text
 
 cancel-job:
 	# Cancel a run-batch job that's still in progress, based on JOBID from run-batch.
