@@ -13,10 +13,11 @@ export JOB_DEF_NAME = GPUJobDefinition
 
 # vars used in the commands down below:
 export ECR_REPO_URI = ${AWS_ACCT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}
-NETWORKING="subnets=${AWSBATCH_SUBNET},securityGroupIds=${AWSBATCH_SG}"
-INSTANCE_ROLE="arn:aws:iam::${AWS_ACCT_ID}:instance-profile/BatchInstanceProfile"
-ROLES="instanceRole=${INSTANCE_ROLE}"
-EXTRA_ARGS='type=EC2,${NETWORKING},${ROLES},tags={"Name": "AWSBatchInstance"}'
+NETWORKING=subnets=${AWSBATCH_SUBNET},securityGroupIds=${AWSBATCH_SG}
+INSTANCE_ROLE=arn:aws:iam::${AWS_ACCT_ID}:instance-profile/BatchInstanceProfile
+ROLES=instanceRole=${INSTANCE_ROLE}
+EXTRA_ARGS=type=EC2,${NETWORKING},${ROLES},tags={Name=AWSBatchInstance}
+#EXTRA_ARGS=type=EC2,${NETWORKING},${ROLES},tags={\"Name\":\"AWSBatchInstance\"}
 
 what-to-do:
 	# Just a quick summary of available makefile macros, group by section:
@@ -185,7 +186,8 @@ delete-compute-resources1:
 	# I.e. the update-compute-environment to DISABLED must go thru before the delete.
 	@-aws batch update-job-queue --job-queue ${JOB_QUEUE_NAME} --state DISABLED
 	@-aws batch delete-job-queue --job-queue ${JOB_QUEUE_NAME}
-	@-aws batch deregister-job-definition --job-definition ${JOB_DEF_NAME}:1  # assumes revision 1 here but use whatever seen in describe-job-definitions
+	@REVISIONS=$(aws batch describe-job-definitions --job-definition-name $JOB_DEF_NAME --status "ACTIVE" --query 'jobDefinitions[*].revision' --output text)
+	@for VERSION in ${REVISIONS}; do aws batch deregister-job-definition --job-definition "${JOB_DEF_NAME}:${VERSION}"; done
 	@-aws batch update-compute-environment --compute-environment ${COMPUTE_ENV_NAME} --state DISABLED
 
 delete-compute-resources2:
