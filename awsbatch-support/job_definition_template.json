@@ -1,12 +1,15 @@
 {
-  "jobDefinitionName": "GPUJobDefinition",
+  "jobDefinitionName": "${JOB_DEF_NAME}",
   "type": "container",
   "retryStrategy": {
     "attempts": 1
   },
+  "timeout": {
+    "attemptDurationSeconds": 3600
+  },
   "containerProperties": {
-    "vcpus": 4,
-    "memory": 16000,
+    "vcpus": 3,
+    "memory": 14000,
     "resourceRequirements": [
       {
         "type": "GPU",
@@ -16,12 +19,18 @@
     "environment": [
       {
         "name": "AWS_DEFAULT_REGION",
-        "value": "us-west-2"
+        "value": "${AWS_REGION}"
       }
     ],
-    "timeout": {
-      "attemptDurationSeconds": 3600
+    "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/aws/batch/job",
+          "awslogs-region": "${AWS_REGION}",
+          "awslogs-stream-prefix": "test-debug"
+        }
     },
+    "executionRoleArn": "arn:aws:iam::${AWS_ACCT_ID}:role/BatchExecutionRole",
     "image": "${ECR_REPO_URI}:latest",
     "command": ["python3", "testing.py"]
   }

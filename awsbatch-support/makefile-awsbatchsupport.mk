@@ -1,7 +1,25 @@
+# Note: certain variables are exported to the environment (to be env vars)
+# whereas the rest are just within-makefile-vars, because the former few are
+# getting passed to substitute into a json file through the environment.  So
+# be careful to not remove "export" on the few variables below - it's not
+# arbitrary!
+
 ECR_REPO = flow_models
+CODEBUILD_PROJ = flow_models_build
+COMPUTE_ENV_NAME = GPUcompenv
+JOB_QUEUE_NAME = GPUJobQueue 
+export JOB_DEF_NAME = GPUJobDefinition
+
+
+# vars used in the commands down below:
 export ECR_REPO_URI = ${AWS_ACCT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}
+NETWORKING="subnets=${AWSBATCH_SUBNET},securityGroupIds=${AWSBATCH_SG}"
+INSTANCE_ROLE="arn:aws:iam::${AWS_ACCT_ID}:instance-profile/BatchInstanceProfile"
+ROLES="instanceRole=${INSTANCE_ROLE}"
+EXTRA_ARGS="type=EC2,${NETWORKING},${ROLES},tags={'Name': 'AWSBatchInstance'}"
 
 what-to-do:
+	# Just a quick summary of available makefile macros, group by section:
 	@echo "once/rarely:    create-ecr-repo create-codebuild-role create-batch-instance-profile"
 	@echo "sometimes:      create-codebuild-project run-build"
 	@echo "sometimes:      create-compute-env create-job-queue register-job-definition"
@@ -45,6 +63,14 @@ create-codebuild-role: check-codebuild-role-exists
 		--policy-arn arn:aws:iam::aws:policy/AWSCodeBuildAdminAccess
 	@echo "AWSCodeBuildAdminAccess successfully attached to role CodeBuildServiceRole."
 
+create-batch-executation-role:
+	@aws iam create-role --role-name BatchExecutionRole --assume-role-policy-document file://awsbatch-support/batch-trust-policy.json
+	@aws iam put-role-policy --role-name BatchExecutionRole --policy-name BatchExecutionPermissions --policy-document file://awsbatch-support/batch-permissions-policy.json
+
+
+
+
+
 create-batch-instance-profile:
 	# Support create-compute-env by supplying a BatchInstanceProfile
 	# (one-time/rare run)
@@ -61,7 +87,7 @@ create-codebuild-project:
 	# Set up the process to get code from Github branch, build docker image, and push to ECR repo.
 	# (occasional run - to push new training code/image)
 	@aws codebuild create-project \
-	    --name "flow_models_build" \
+	    --name ${CODEBUILD_PROJ} \
 		--source "type=GITHUB,location=https://github.com/aganse/flow_models.git,buildspec=awsbatch-support/buildspec.yml" \
 	    --artifacts "type=NO_ARTIFACTS" \
 	    --environment "type=LINUX_CONTAINER,image=aws/codebuild/standard:4.0,computeType=BUILD_GENERAL1_SMALL,environmentVariables=[{name='ECR_REPO_URI', value='${ECR_REPO_URI}'},{name='DEVICE', value='${DEVICE}'}]" \
@@ -71,7 +97,7 @@ create-codebuild-project:
 run-build:
 	# Actually run the process to get code from Github branch, build docker image, and push to ECR repo.
 	# (occasional run - to push new training code/image)
-	@aws codebuild start-build --project-name flow_models_build
+	@aws codebuild start-build --project-name ${CODEBUILD_PROJ}
 	# to check build status in cli:
 	# aws codebuild batch-get-builds --ids <arn:etc.etc.etc from start-build output, or from console>
 
@@ -87,26 +113,24 @@ run-build:
 create-compute-env:
 	# Create batch compute environment - g4dn.xlarge have 4 vCpus so pinning vCpus to 4.
 	# (occasional run - for each set of batch runs)
-	NETWORKING="subnets=${AWSBATCH_SUBNET},securityGroupIds=${AWSBATCH_SG}"
-	INSTANCE_ROLE="arn:aws:iam::${AWS_ACCT_ID}:instance-profile/BatchInstanceProfile"
-	ROLES="instanceRole=${INSTANCE_ROLE} --service-role ''" # blank string gives default AWSBatchServiceRole
-	EXTRA_ARGS="type=EC2,${NETWORKING},${ROLES}"
-	@aws batch create-compute-environment --compute-environment-name GPUEnvironment --type MANAGED \
-		--compute-resources instanceTypes=g4dn.xlarge,minvCpus=0,desiredvCpus=0,maxvCpus=4,${EXTRA_ARGS}
-	# setting minvCpus=0,desiredvCpus=0 -> system terminates instances when no jobs
+	@aws batch create-compute-environment --compute-environment-name ${COMPUTE_ENV_NAME} --type MANAGED \
+		--compute-resources instanceTypes=g4dn.xlarge,minvCpus=0,desiredvCpus=0,maxvCpus=4,${EXTRA_ARGS} \
+		--service-role ""
+	# Blank string gives default AWSServiceRoleForBatch (default service-linked-role).
+	# Setting minvCpus=0,desiredvCpus=0 -> system terminates instances when no jobs in queue.
 
 	# to set up to use much-cheaper spot instances later:
-	# aws batch create-compute-environment --compute-environment-name GPUEnvironment --type MANAGED \
+	# aws batch create-compute-environment --compute-environment-name ${COMPUTE_ENV_NAME} --type MANAGED \
 	#	--compute-resources type=SPOT,allocationStrategy=SPOT_CAPACITY_OPTIMIZED,minvCpus=4,maxvCpus=4,desiredvCpus=4,instanceTypes=g4dn.xlarge,subnets=${AWSBATCH_SUBNET},securityGroupIds=${AWSBATCH_SG},spotIamFleetRole=arn:aws:iam::$(AWS_ACCT_ID):role/AWSBatchServiceRole \
     #   --service-role ""
 
-	@aws batch describe-compute-environments --compute-environments GPUEnvironment
+	@aws batch describe-compute-environments --compute-environments ${COMPUTE_ENV_NAME}
 
 create-job-queue:
 	# Create batch job queue.
 	# (occasional run - for each set of batch runs)
-	@aws batch create-job-queue --job-queue-name GPUJobQueue \
-		--compute-environment-order order=1,computeEnvironment=GPUEnvironment \
+	@aws batch create-job-queue --job-queue-name ${JOB_QUEUE_NAME} \
+		--compute-environment-order order=1,computeEnvironment=${COMPUTE_ENV_NAME} \
 		--priority 1
 
 register-job-definition:
@@ -119,9 +143,9 @@ register-job-definition:
 	&& aws batch register-job-definition --cli-input-json file:///tmp/job-definition.json
 	#rm /tmp/job_definition.json
 
-run-batchjob: create-compute-env create-job-queue register-job-definition
+run-batchjob:
 	# Run the batch job in the container from ECR, on an AWS remote GPU instance.
-	@aws batch submit-job --job-name MyGPUJob --job-queue GPUJobQueue --job-definition GPUJobDefinition
+	@aws batch submit-job --job-name MyGPUJob --job-queue ${JOB_QUEUE_NAME} --job-definition ${JOB_DEF_NAME}
 	# Command returns immediately and provides a job-id, to enter for check-job-status and cancel-job macros.
 	# Job log output is found in the AWS CloudWatch Console:
 	#     https://us-west-2.console.aws.amazon.com/cloudwatch/home?region=us-west-2
@@ -159,14 +183,14 @@ list-compute-resources:
 delete-compute-resources1:
 	# Wait a few minutes after running this macro, then run delete-compute-resources2.
 	# I.e. the update-compute-environment to DISABLED must go thru before the delete.
-	@-aws batch update-job-queue --job-queue GPUJobQueue --state DISABLED
-	@-aws batch delete-job-queue --job-queue GPUJobQueue
-	@-aws batch deregister-job-definition --job-definition GPUJobDefinition:1  # assumes revision 1 here but use whatever seen in describe-job-definitions
-	@-aws batch update-compute-environment --compute-environment GPUEnvironment --state DISABLED
+	@-aws batch update-job-queue --job-queue ${JOB_QUEUE_NAME} --state DISABLED
+	@-aws batch delete-job-queue --job-queue ${JOB_QUEUE_NAME}
+	@-aws batch deregister-job-definition --job-definition ${JOB_DEF_NAME}:1  # assumes revision 1 here but use whatever seen in describe-job-definitions
+	@-aws batch update-compute-environment --compute-environment ${COMPUTE_ENV_NAME} --state DISABLED
 
 delete-compute-resources2:
 	# Wait for the state of update-compute-resources1 to settle first, then run this:
-	@-aws batch delete-compute-environment --compute-environment GPUEnvironment
+	@-aws batch delete-compute-environment --compute-environment ${COMPUTE_ENV_NAME}
 
 list-job-status:
 	# List status of a run-batch job that's still in progress, based on JOBID from run-batch
@@ -199,7 +223,7 @@ ifndef DEVICE
 	@echo                                                                                
 endif                                                                                    
 	@docker tag ${ECR_REPO}:${version}-$${DEVICE} ${ECR_REPO_URI}:latest  # tag the cpu or gpu image as 'latest'
-	@aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin ${ECR_REPO_URI}  # login to ECR
+	@aws ecr get-login-password --region $${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REPO_URI}  # login to ECR
 	@docker push ${ECR_REPO_URI}:latest  # push the image
 
 
