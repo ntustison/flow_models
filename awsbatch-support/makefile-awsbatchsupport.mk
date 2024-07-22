@@ -16,7 +16,7 @@ export ECR_REPO_URI = ${AWS_ACCT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_R
 NETWORKING="subnets=${AWSBATCH_SUBNET},securityGroupIds=${AWSBATCH_SG}"
 INSTANCE_ROLE="arn:aws:iam::${AWS_ACCT_ID}:instance-profile/BatchInstanceProfile"
 ROLES="instanceRole=${INSTANCE_ROLE}"
-EXTRA_ARGS="type=EC2,${NETWORKING},${ROLES},tags={'Name': 'AWSBatchInstance'}"
+EXTRA_ARGS='type=EC2,${NETWORKING},${ROLES},tags={"Name": "AWSBatchInstance"}'
 
 what-to-do:
 	# Just a quick summary of available makefile macros, group by section:
@@ -141,7 +141,7 @@ register-job-definition:
 	# environment variable below:
 	@envsubst < awsbatch-support/job_definition_template.json > /tmp/job-definition.json \
 	&& aws batch register-job-definition --cli-input-json file:///tmp/job-definition.json
-	#rm /tmp/job_definition.json
+	# rm /tmp/job-definition.json
 
 run-batchjob:
 	# Run the batch job in the container from ECR, on an AWS remote GPU instance.
