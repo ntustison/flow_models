@@ -1,9 +1,12 @@
 # Makefile for flow_models
-export DEVICE=gpu
 
+export DEVICE=gpu
 # Environment variables AWS_ACCT_ID and AWS_REGION are expected to exist
-# (check env vars before importing support makefile)
+
+
+# This line allows the AWS Batch make commands to be run from repo root dir
 include awsbatch-support/makefile-awsbatchsupport.mk
+
 
 # These are system commands used in macros below.
 # (verify in a python environment to gate installation of packages)
@@ -46,17 +49,6 @@ run-local:
 	# Run/test the batch job on local instance
 	docker run --rm -it flow_models:$(version)-${DEVICE}
 
-build-and-push-local-image: build-gpu push-to-ecr
-
-build-and-push-remote-image: create-codebuild-project run-build
-
-define-the-compute: create-compute-env create-job-queue register-job-definition
-
-run-job: run-batchjob
-
-
 
 # ensures all entries run every time since these aren't files
-.PHONY: create-env install-dev unittests build-cpu run-local \
-	build-and-push-local-image define-ecr-repo-and-role \
-	define-the-compute build-image-and-run-job
+.PHONY: create-env install-dev unittests build-cpu build-gpu run-local

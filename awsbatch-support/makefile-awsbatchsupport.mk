@@ -1,23 +1,27 @@
-# Note: certain variables are exported to the environment (to be env vars)
-# whereas the rest are just within-makefile-vars, because the former few are
-# getting passed to substitute into a json file through the environment.  So
-# be careful to not remove "export" on the few variables below - it's not
-# arbitrary!
-
-ECR_REPO = flow_models
-CODEBUILD_PROJ = flow_models_build
-COMPUTE_ENV_NAME = GPUcompenv
-JOB_QUEUE_NAME = GPUJobQueue 
-export JOB_DEF_NAME = GPUJobDefinition
+# Note: environment variables AWS_ACCT_ID and AWS_REGION are expected to exist
+# in the environment before calling these makefile macros.
+#
+# Note: two variables are purposely exported to the environment (to be env vars)
+# whereas the rest are just within-makefile-vars, because these two are passed
+# to substitute into a file.  So be careful to not arbitrarily remove the
+# "export" on those two variables below (JOB_DEF_NAME and ECR_REPO_URI).
 
 
-# vars used in the commands down below:
-export ECR_REPO_URI = ${AWS_ACCT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}
+# You can set these vars to tailor to your naming preferences:
+ECR_REPO=flow_models
+CODEBUILD_PROJ=flow_models_build
+COMPUTE_ENV_NAME=GPUcompenv
+JOB_QUEUE_NAME=GPUJobQueue
+export JOB_DEF_NAME=GPUJobDefinition
+DEVICE=gpu  # cpu or gpu
+
+
+# these vars are used in commands in the make macros down below:
+export ECR_REPO_URI=${AWS_ACCT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}
 NETWORKING=subnets=${AWSBATCH_SUBNET},securityGroupIds=${AWSBATCH_SG}
 INSTANCE_ROLE=arn:aws:iam::${AWS_ACCT_ID}:instance-profile/BatchInstanceProfile
 ROLES=instanceRole=${INSTANCE_ROLE}
 EXTRA_ARGS=type=EC2,${NETWORKING},${ROLES},tags={Name=AWSBatchInstance}
-#EXTRA_ARGS=type=EC2,${NETWORKING},${ROLES},tags={\"Name\":\"AWSBatchInstance\"}
 
 what-to-do:
 	# Just a quick summary of available makefile macros, group by section:
@@ -116,7 +120,7 @@ create-compute-env:
 	# (occasional run - for each set of batch runs)
 	@aws batch create-compute-environment --compute-environment-name ${COMPUTE_ENV_NAME} --type MANAGED \
 		--compute-resources instanceTypes=g4dn.xlarge,minvCpus=0,desiredvCpus=0,maxvCpus=4,${EXTRA_ARGS} \
-		--service-role ""
+		--service-role "" --no-cli-pager
 	# Blank string gives default AWSServiceRoleForBatch (default service-linked-role).
 	# Setting minvCpus=0,desiredvCpus=0 -> system terminates instances when no jobs in queue.
 
@@ -132,7 +136,7 @@ create-job-queue:
 	# (occasional run - for each set of batch runs)
 	@aws batch create-job-queue --job-queue-name ${JOB_QUEUE_NAME} \
 		--compute-environment-order order=1,computeEnvironment=${COMPUTE_ENV_NAME} \
-		--priority 1
+		--priority 1 --no-cli-pager
 
 register-job-definition:
 	# Register batch job definition.
@@ -141,12 +145,12 @@ register-job-definition:
 	# per user, so before submitting json file, we substitute in the $ECR_REPO_URI
 	# environment variable below:
 	@envsubst < awsbatch-support/job_definition_template.json > /tmp/job-definition.json \
-	&& aws batch register-job-definition --cli-input-json file:///tmp/job-definition.json
-	# rm /tmp/job-definition.json
+	&& aws batch register-job-definition --cli-input-json file:///tmp/job-definition.json --no-cli-pager
+	rm /tmp/job-definition.json
 
 run-batchjob:
 	# Run the batch job in the container from ECR, on an AWS remote GPU instance.
-	@aws batch submit-job --job-name MyGPUJob --job-queue ${JOB_QUEUE_NAME} --job-definition ${JOB_DEF_NAME}
+	@aws batch submit-job --job-name MyGPUJob --job-queue ${JOB_QUEUE_NAME} --job-definition ${JOB_DEF_NAME} --no-cli-pager
 	# Command returns immediately and provides a job-id, to enter for check-job-status and cancel-job macros.
 	# Job log output is found in the AWS CloudWatch Console:
 	#     https://us-west-2.console.aws.amazon.com/cloudwatch/home?region=us-west-2
@@ -173,6 +177,16 @@ delete-roles:
 	@-aws iam delete-role --role-name CodeBuildServiceRole
 	@-aws iam delete-role --role-name AWSBatchServiceRole
 
+list-jobs:
+	@echo "posixtime	status	statusReason		jobName		jobID"
+	@-aws batch list-jobs --job-queue ${JOB_QUEUE_NAME} --job-status SUBMITTED --query 'jobSummaryList[*].[createdAt,status,statusReason,jobName,jobId]' --output text --no-cli-pager
+	@-aws batch list-jobs --job-queue ${JOB_QUEUE_NAME} --job-status PENDING --query 'jobSummaryList[*].[createdAt,status,statusReason,jobName,jobId]' --output text --no-cli-pager
+	@-aws batch list-jobs --job-queue ${JOB_QUEUE_NAME} --job-status RUNNABLE --query 'jobSummaryList[*].[createdAt,status,statusReason,jobName,jobId]' --output text --no-cli-pager
+	@-aws batch list-jobs --job-queue ${JOB_QUEUE_NAME} --job-status STARTING --query 'jobSummaryList[*].[createdAt,status,statusReason,jobName,jobId]' --output text --no-cli-pager
+	@-aws batch list-jobs --job-queue ${JOB_QUEUE_NAME} --job-status RUNNING --query 'jobSummaryList[*].[createdAt,status,statusReason,jobName,jobId]' --output text --no-cli-pager
+	@-aws batch list-jobs --job-queue ${JOB_QUEUE_NAME} --job-status SUCCEEDED --query 'jobSummaryList[*].[createdAt,status,statusReason,jobName,jobId]' --output text --no-cli-pager
+	@-aws batch list-jobs --job-queue ${JOB_QUEUE_NAME} --job-status FAILED --query 'jobSummaryList[*].[createdAt,status,statusReason,jobName,jobId]' --output text --no-cli-pager
+
 list-compute-resources:
 	# List out the AWS Batch related resources (compute-envs, job-queues, job-defs, auto-scale-groups, ec2-instances).
 	@-aws batch describe-compute-environments --query 'computeEnvironments[*].[status, computeEnvironmentName, statusReason]' --output json | jq -r '["compute-env"] + .[] | @tsv'
@@ -185,14 +199,14 @@ delete-compute-resources1:
 	# Wait a few minutes after running this macro, then run delete-compute-resources2.
 	# I.e. the update-compute-environment to DISABLED must go thru before the delete.
 	@-aws batch update-job-queue --job-queue ${JOB_QUEUE_NAME} --state DISABLED
-	@-aws batch delete-job-queue --job-queue ${JOB_QUEUE_NAME}
+	@-aws batch delete-job-queue --job-queue ${JOB_QUEUE_NAME} --no-cli-pager
 	@REVISIONS=$(aws batch describe-job-definitions --job-definition-name $JOB_DEF_NAME --status "ACTIVE" --query 'jobDefinitions[*].revision' --output text)
 	@for VERSION in ${REVISIONS}; do aws batch deregister-job-definition --job-definition "${JOB_DEF_NAME}:${VERSION}"; done
-	@-aws batch update-compute-environment --compute-environment ${COMPUTE_ENV_NAME} --state DISABLED
+	@-aws batch update-compute-environment --compute-environment ${COMPUTE_ENV_NAME} --state DISABLED --no-cli-pager
 
 delete-compute-resources2:
 	# Wait for the state of update-compute-resources1 to settle first, then run this:
-	@-aws batch delete-compute-environment --compute-environment ${COMPUTE_ENV_NAME}
+	@-aws batch delete-compute-environment --compute-environment ${COMPUTE_ENV_NAME} --no-cli-pager
 
 list-job-status:
 	# List status of a run-batch job that's still in progress, based on JOBID from run-batch
