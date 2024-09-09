@@ -200,8 +200,8 @@ delete-compute-resources1:
 	# I.e. the update-compute-environment to DISABLED must go thru before the delete.
 	@-aws batch update-job-queue --job-queue ${JOB_QUEUE_NAME} --state DISABLED
 	@-aws batch delete-job-queue --job-queue ${JOB_QUEUE_NAME} --no-cli-pager
-	@REVISIONS=$(aws batch describe-job-definitions --job-definition-name $JOB_DEF_NAME --status "ACTIVE" --query 'jobDefinitions[*].revision' --output text)
-	@for VERSION in ${REVISIONS}; do aws batch deregister-job-definition --job-definition "${JOB_DEF_NAME}:${VERSION}"; done
+	@export REVISIONS=$(aws batch describe-job-definitions --job-definition-name $JOB_DEF_NAME --status "ACTIVE" --query 'jobDefinitions[*].revision' --output text)
+	@for VERSION in $${REVISIONS}; do aws batch deregister-job-definition --job-definition "${JOB_DEF_NAME}:${VERSION}"; done
 	@-aws batch update-compute-environment --compute-environment ${COMPUTE_ENV_NAME} --state DISABLED --no-cli-pager
 
 delete-compute-resources2:
