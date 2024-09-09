@@ -122,7 +122,7 @@ with a few variations in the partitioning of the inputs and outputs.
     Ardizzone 2019 INNs paper:  https://arxiv.org/pdf/1808.04730
 
 * Bayesian inverse problems with INNs
-    Zhang & Curtis 2021 paper:  https://arxiv.org/pdf/2104.04775
+    Zhang & Curtis 2021 JGR paper:  https://agupubs.onlinelibrary.wiley.com/doi/pdfdirect/10.1029/2021JB022320
 
 * TensorFlow Probability components
     tfp.bijectors.RealNVP API:  https://www.tensorflow.org/probability/api_docs/python/tfp/bijectors/RealNVP
