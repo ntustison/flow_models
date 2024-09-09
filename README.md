@@ -75,7 +75,7 @@ with a few variations in the partitioning of the inputs and outputs.
 3. Get images to train/test with:
 
     Of course you can use whatever images you want.  For my experimentation I
-    used the Kaggle dataset
+    used the really nicely curated Kaggle dataset
     [animal-faces](https://www.kaggle.com/datasets/andrewmvd/animal-faces).
 
     If using a dedicated GPU-enabled instance, you could save these image files
@@ -114,15 +114,15 @@ with a few variations in the partitioning of the inputs and outputs.
 ### Some key references
 
 * Distribution mapping and generative image modeling with INNs
-    RealNVP paper:  https://arxiv.org/pdf/1605.08803
-    NICE paper:  https://arxiv.org/pdf/1410.8516
-    Glow paper:  https://arxiv.org/pdf/1807.03039
+  - [RealNVP paper](https://arxiv.org/pdf/1605.08803)
+  - [NICE paper](https://arxiv.org/pdf/1410.8516)
+  - [Glow paper](https://arxiv.org/pdf/1807.03039)
 
 * Generative classification and ill-conditioned parameter estimation with INNs
-    Ardizzone 2019 INNs paper:  https://arxiv.org/pdf/1808.04730
+  - [Ardizzone 2019 INNs paper](https://arxiv.org/pdf/1808.04730)
 
 * Bayesian inverse problems with INNs
-    Zhang & Curtis 2021 JGR paper:  https://agupubs.onlinelibrary.wiley.com/doi/pdfdirect/10.1029/2021JB022320
+  - [Zhang & Curtis 2021 JGR paper](https://agupubs.onlinelibrary.wiley.com/doi/pdfdirect/10.1029/2021JB022320)
 
 * TensorFlow Probability components
-    tfp.bijectors.RealNVP API:  https://www.tensorflow.org/probability/api_docs/python/tfp/bijectors/RealNVP
+  - [tfp.bijectors.RealNVP API](https://www.tensorflow.org/probability/api_docs/python/tfp/bijectors/RealNVP)
