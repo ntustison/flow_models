@@ -41,9 +41,9 @@ describing what all those little images and details are yet; the papers are
 referenced at the bottom of this readme though.
 
 Work is currently still in progress - I'm gradually implementing the series of
-7 applications in the figure - currently #2 is fully implemented (and documented
+7 applications in the figure - currently #2 is fully implemented (documented
 at
-["Flow_models 2: Image generation and anomaly detection as two sides of the same coin"](http://research.ganse.org/datasci/sim-cats)
+["Flow_models 2: Image generation and anomaly detection as two sides of the same coin"](http://research.ganse.org/datasci/sim-cats),
 and as the first comprised the bulk of the work - the rest are variations using
 same modeling code).  Instructions for using/running that follow below, and
 similar ones are upcoming for the other applications as well.  Point being,
@@ -113,7 +113,7 @@ inputs and outputs.
 4. Run `python train.py`.
 
 
-### Some key references
+### C. Some key references
 
 * Distribution mapping and generative image modeling with INNs
   - [RealNVP paper](https://arxiv.org/pdf/1605.08803)
