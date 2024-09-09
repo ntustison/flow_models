@@ -42,11 +42,13 @@ referenced at the bottom of this readme though.
 
 Work is currently still in progress - I'm gradually implementing the series of
 7 applications in the figure - currently #2 is fully implemented (and documented
-on my page 
-["Flow_models 2: Image generation and anomaly detection as two sides of the same coin"](http://research.ganse.org/datasci/sim-cats)).
-Instructions for using/running that follow below, and similar ones are upcoming
-for the other applications as well.  Point being, it's all the same model, just
-with a few variations in the partitioning of the inputs and outputs.
+at
+["Flow_models 2: Image generation and anomaly detection as two sides of the same coin"](http://research.ganse.org/datasci/sim-cats)
+and as the first comprised the bulk of the work - the rest are variations using
+same modeling code).  Instructions for using/running that follow below, and
+similar ones are upcoming for the other applications as well.  Point being,
+it's all the same model, just with a few variations in the partitioning of the
+inputs and outputs.
 
 
 ### A. To install/prepare
