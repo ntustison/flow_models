@@ -21,20 +21,27 @@ these stem from the theme of mapping one probability distribution into another.
 
 Other implementations of INNs I've seen out there only cover one specific
 application and with a lot of bespoke code.  But the Tensorflow Probability
-provides almost everything needed to implement these models in a more
-encapsulated, cleaner, and easier to understand way (at least for me!).
+package provides almost everything needed to implement these models in a more
+encapsulated, cleaner, and easier to understand way (at least for me!).  Of
+course as I expand this work I'm wrestling a number of tradeoffs in what to
+generalize/simply via TFP and what to explicitly implement - part of the
+learning process for me.
 
-The above diagram summarizes variations for different applications in how the
-N-dimensional model inputs x are mapped through the flow model to N-dimensional
-points z that includes a multivariate Gaussian.  All those points can each be
-mapped back though the model to images as well.  The multivariate Gaussian is a
-standard normal distribution, so by construction has mean of zero and
-covariance as the identity matrix.
+The above diagram summarizes, for different applications, variations in how the
+N-dimensional model inputs are mapped through the flow model to N-dimensional
+outputs that include a latent multivariate standard normal distribution to
+capture some or all of the complex variations on the input side.  All those
+output points can each be mapped back though the model to the inputs as well,
+which has applications in image generation, uncertainty quantifaction, and
+inverse problems among others.
 
-Work is currently still in progress, but things are functional meanwhile per
-instructions below.  This code is what I used to produce the materials in 
-["Sim-cats! Image generation and unsupervised learning for anomaly detection as
-  two sides of the same coin"](http://research.ganse.org/datasci/sim-cats)
+Work is currently still in progress - I'm gradually implementing the series of
+7 applications in the figure - currently #2 is fully implemented (and documented
+on my page 
+["Flow_models 2: Image generation for anomaly detection as two sides of the same coin"](http://research.ganse.org/datasci/sim-cats)).
+Instructions for using/running that follow below, and similar ones are upcoming
+for the other applications as well.  Point being, it's all the same model, just
+with a few variations in partioning of the inputs and outputs.
 
 
 ### A. To install/prepare
