@@ -2,6 +2,38 @@
 Flow-based invertible neural networks implemented with Keras, Tensorflow, and
 Tensorflow Probability.
 
+<IMG SRC="doc/INNfig_3sec.gif" ALT="Seven applications of flow-model in different forms" WIDTH=700>
+
+Flow models are invertible neural networks (INNs) — a type of generative model
+that allows exact likelihood computation as well as generating new samples from
+the learned distribution.  This is done with an architecture that ensures all
+transformations are reversible and the Jacobian determinant is efficiently
+computable.
+
+These models transform complex data distributions into more tractable/useful
+ones (usually Gaussian) in which it is more feasible to do probabilistic
+calculations such as for anomaly detection.  But these models allow far more
+than anomaly detection - their capabilities allow INNs to cover generative
+image modeling, generative classification, parameter estimation on
+ill-conditioned problems, and (ill-posed) inverse problems with or without
+noise on the data.  All of these stem from the theme of mapping one distribution
+into another.
+
+Unlike earlier generative models like Variational Autoencoders (VAEs) or
+Generative Adversarial Networks (GANs), flow models provide an exact
+log-likelihood optimization.  So in modeling the distribution of the data, with
+INNs one can explicitly estimate the probability that a new image is outside the
+distribution of the training data, in addition to creating new data samples
+that adhere to the learned distribution.
+
+
+This diagram shows how the model inputs x, being N-dimensional vectors of
+flattened images, are mapped through the flow model to points z in an
+N-dimensional multivariate Gaussian latent space.  And those points can each be
+mapped back though the model to images as well.  The distribution is a standard
+normal (N-dimensional), so by construction has mean of zero and covariance as
+the identity matrix.
+
 Work currently still in progress, but things are functional meanwhile per
 instructions below.  This code is what I used to produce the materials in 
 ["Sim-cats! Image generation and unsupervised learning for anomaly detection as
