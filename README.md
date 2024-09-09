@@ -32,16 +32,21 @@ N-dimensional model inputs are mapped through the flow model to N-dimensional
 outputs that include a latent multivariate standard normal distribution to
 capture some or all of the complex variations on the input side.  All those
 output points can each be mapped back though the model to the inputs as well,
-which has applications in image generation, uncertainty quantifaction, and
-inverse problems among others.
+important in the image generation, uncertainty quantifaction, and inverse
+problems among others.  The little images in each frame of the gif are subtle
+references to the example applications I'm implementing for each variation, and
+key research papers from the literature that describe these variations one at
+a time.  Sorry, I acknowledge that at this summary level I'm not currently
+describing what all those little images and details are yet; the papers are
+referenced at the bottom of this readme though.
 
 Work is currently still in progress - I'm gradually implementing the series of
 7 applications in the figure - currently #2 is fully implemented (and documented
 on my page 
-["Flow_models 2: Image generation for anomaly detection as two sides of the same coin"](http://research.ganse.org/datasci/sim-cats)).
+["Flow_models 2: Image generation and anomaly detection as two sides of the same coin"](http://research.ganse.org/datasci/sim-cats)).
 Instructions for using/running that follow below, and similar ones are upcoming
 for the other applications as well.  Point being, it's all the same model, just
-with a few variations in partioning of the inputs and outputs.
+with a few variations in the partitioning of the inputs and outputs.
 
 
 ### A. To install/prepare
@@ -69,23 +74,16 @@ with a few variations in partioning of the inputs and outputs.
 
 3. Get images to train/test with:
 
-    Of course you can use whatever images you want.  For experimentation I
-    recommend downloading a relevant Kaggle dataset.  E.g. I thought the
-    [animal-faces](https://www.kaggle.com/datasets/andrewmvd/animal-faces) one
-    was especially good, focusing on just the cats.  Other Kaggle datasets I
-    may try in near future include:
+    Of course you can use whatever images you want.  For my experimentation I
+    used the Kaggle dataset
+    [animal-faces](https://www.kaggle.com/datasets/andrewmvd/animal-faces).
 
-    * [Facial Expressions Training Data](https://www.kaggle.com/datasets/noamsegal/affectnet-training-data?select=disgust)
-    * [Facial Expression Image Data AFFECTNET YOLO Format](https://www.kaggle.com/datasets/fatihkgg/affectnet-yolo-format)
-    * [Fresh and Rotten Classification](https://www.kaggle.com/datasets/swoyam2609/fresh-and-stale-classification)
-    * [Flower Classification 10 Classes](https://www.kaggle.com/datasets/utkarshsaxenadn/flower-classification-5-classes-roselilyetc)
-
-    If using a dedicated GPU-enabled instance, you could save these directly on
-    that instance in a `data` subdir within the `flow_models` repo directory.
-    For that case the URIs for train_generator and other_generator in train.py
-    can simply be `"data/train"` for example.  Or you can use image files in an
-    S3 bucket, whether in the dedicated GPU-enabled instance or soon within
-    AWS Batch configuration.  For that case the URIs should have the form
+    If using a dedicated GPU-enabled instance, you could save these image files
+    directly on that instance in a `data` subdir within the `flow_models` repo
+    directory.  For that case the URIs for train_generator and other_generator
+    in train.py can simply be `"data/train"` for example.  Or you can use image
+    files in an S3 bucket, whether in the dedicated GPU-enabled instance or
+    in a batch configuration.  For that case the URIs should have the form
     `"s3://mybucket/myprefix/train"`.
 
     This is not supervised learning so labels are not used for training, but
@@ -100,8 +98,8 @@ with a few variations in partioning of the inputs and outputs.
         train/
             cat/
         val/
-            beachball/   <-- these generally show up as outliers in gaussian latent points
-            cat/         <-- these generally don't
+            beachball/   <-- these show up as outliers in gaussian latent points
+            cat/         <-- these don't
     ```
 
 ### B. To run the training
@@ -111,3 +109,20 @@ with a few variations in partioning of the inputs and outputs.
     at the top of train.py to squelch `UserWarning`s that are spewed by TFP.)
 3. Set desired parameters in `train.py`.
 4. Run `python train.py`.
+
+
+### Some key references
+
+* Distribution mapping and generative image modeling with INNs
+    RealNVP paper:  https://arxiv.org/pdf/1605.08803
+    NICE paper:  https://arxiv.org/pdf/1410.8516
+    Glow paper:  https://arxiv.org/pdf/1807.03039
+
+* Generative classification and ill-conditioned parameter estimation with INNs
+    Ardizzone 2019 INNs paper:  https://arxiv.org/pdf/1808.04730
+
+* Bayesian inverse problems with INNs
+    Zhang & Curtis 2021 paper:  https://arxiv.org/pdf/2104.04775
+
+* TensorFlow Probability components
+    tfp.bijectors.RealNVP API:  https://www.tensorflow.org/probability/api_docs/python/tfp/bijectors/RealNVP
