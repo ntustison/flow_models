@@ -1,11 +1,54 @@
 # flow_models
-Flow-based invertible neural networks implemented with Keras, Tensorflow, and
-Tensorflow Probability.
 
-Work currently still in progress, but things are functional meanwhile per
-instructions below.  This code is what I used to produce the materials in 
-["Sim-cats! Image generation and unsupervised learning for anomaly detection as
-  two sides of the same coin"](http://research.ganse.org/datasci/sim-cats)
+Flow models are invertible neural networks (INNs) — a type of generative model
+that allows not only generating new samples from the learned distribution
+(which GANs and VAEs do too) but also exact likelihood computation as well
+(which GANs and VAEs do not).  This is accomplished with an architecture that
+ensures all transformations are reversible and the Jacobian determinant is
+efficiently computable.  By modeling probabilities directly, INNs allow for a
+range of other applications too - a real Swiss-army-knife of the modeling world
+that I'm recently fascinated with.  <IMG SRC="doc/sak.jpg" ALT="" WIDTH=25>
+
+<IMG SRC="doc/INNfig_3sec.gif" ALT="Seven applications of flow-model in different forms" WIDTH=700>
+
+These flow models transform complex data distributions into more tractable ones
+(usually Gaussian) in which it's feasible to do probabilistic calculations such
+as anomaly detection for example.  But these models allow far more than anomaly
+detection - their capabilities allow INNs to cover generative image modeling,
+generative classification, parameter estimation on ill-conditioned problems,
+and (ill-posed) inverse problems with or without noise on the data.  All of
+these stem from the theme of mapping one probability distribution into another.
+
+Other implementations of INNs I've seen out there only cover one specific
+application and with a lot of bespoke code.  But the Tensorflow Probability
+package provides almost everything needed to implement these models in a more
+encapsulated, cleaner, and easier to understand way (at least for me!).  Of
+course as I expand this work I'm wrestling a number of tradeoffs in what to
+generalize/simply via TFP and what to explicitly implement - part of the
+learning process for me.
+
+The above diagram summarizes, for different applications, variations in how the
+N-dimensional model inputs are mapped through the flow model to N-dimensional
+outputs that include a latent multivariate standard normal distribution to
+capture some or all of the complex variations on the input side.  All those
+output points can each be mapped back though the model to the inputs as well,
+important in the image generation, uncertainty quantifaction, and inverse
+problems among others.  The little images in each frame of the gif are subtle
+references to the example applications I'm implementing for each variation, and
+key research papers from the literature that describe these variations one at
+a time.  Sorry, I acknowledge that at this summary level I'm not currently
+describing what all those little images and details are yet; the papers are
+referenced at the bottom of this readme though.
+
+Work is currently still in progress - I'm gradually implementing the series of
+7 applications in the figure - currently #2 is fully implemented (documented
+at
+["Flow_models 2: Image generation and anomaly detection as two sides of the same coin"](http://research.ganse.org/datasci/sim-cats),
+and as the first comprised the bulk of the work - the rest are variations using
+same modeling code).  Instructions for using/running that follow below, and
+similar ones are upcoming for the other applications as well.  Point being,
+it's all the same model, just with a few variations in the partitioning of the
+inputs and outputs.
 
 
 ### A. To install/prepare
@@ -33,23 +76,16 @@ instructions below.  This code is what I used to produce the materials in
 
 3. Get images to train/test with:
 
-    Of course you can use whatever images you want.  For experimentation I
-    recommend downloading a relevant Kaggle dataset.  E.g. I thought the
-    [animal-faces](https://www.kaggle.com/datasets/andrewmvd/animal-faces) one
-    was especially good, focusing on just the cats.  Other Kaggle datasets I
-    may try in near future include:
+    Of course you can use whatever images you want.  For my experimentation I
+    used the really nicely curated Kaggle dataset
+    [animal-faces](https://www.kaggle.com/datasets/andrewmvd/animal-faces).
 
-    * [Facial Expressions Training Data](https://www.kaggle.com/datasets/noamsegal/affectnet-training-data?select=disgust)
-    * [Facial Expression Image Data AFFECTNET YOLO Format](https://www.kaggle.com/datasets/fatihkgg/affectnet-yolo-format)
-    * [Fresh and Rotten Classification](https://www.kaggle.com/datasets/swoyam2609/fresh-and-stale-classification)
-    * [Flower Classification 10 Classes](https://www.kaggle.com/datasets/utkarshsaxenadn/flower-classification-5-classes-roselilyetc)
-
-    If using a dedicated GPU-enabled instance, you could save these directly on
-    that instance in a `data` subdir within the `flow_models` repo directory.
-    For that case the URIs for train_generator and other_generator in train.py
-    can simply be `"data/train"` for example.  Or you can use image files in an
-    S3 bucket, whether in the dedicated GPU-enabled instance or soon within
-    AWS Batch configuration.  For that case the URIs should have the form
+    If using a dedicated GPU-enabled instance, you could save these image files
+    directly on that instance in a `data` subdir within the `flow_models` repo
+    directory.  For that case the URIs for train_generator and other_generator
+    in train.py can simply be `"data/train"` for example.  Or you can use image
+    files in an S3 bucket, whether in the dedicated GPU-enabled instance or
+    in a batch configuration.  For that case the URIs should have the form
     `"s3://mybucket/myprefix/train"`.
 
     This is not supervised learning so labels are not used for training, but
@@ -64,8 +100,8 @@ instructions below.  This code is what I used to produce the materials in
         train/
             cat/
         val/
-            beachball/   <-- these generally show up as outliers in gaussian latent points
-            cat/         <-- these generally don't
+            beachball/   <-- these show up as outliers in gaussian latent points
+            cat/         <-- these don't
     ```
 
 ### B. To run the training
@@ -75,3 +111,20 @@ instructions below.  This code is what I used to produce the materials in
     at the top of train.py to squelch `UserWarning`s that are spewed by TFP.)
 3. Set desired parameters in `train.py`.
 4. Run `python train.py`.
+
+
+### C. Some key references
+
+* Distribution mapping and generative image modeling with INNs
+  - [RealNVP paper](https://arxiv.org/pdf/1605.08803)
+  - [NICE paper](https://arxiv.org/pdf/1410.8516)
+  - [Glow paper](https://arxiv.org/pdf/1807.03039)
+
+* Generative classification and ill-conditioned parameter estimation with INNs
+  - [Ardizzone 2019 INNs paper](https://arxiv.org/pdf/1808.04730)
+
+* Bayesian inverse problems with INNs
+  - [Zhang & Curtis 2021 JGR paper](https://agupubs.onlinelibrary.wiley.com/doi/pdfdirect/10.1029/2021JB022320)
+
+* TensorFlow Probability components
+  - [tfp.bijectors.RealNVP API](https://www.tensorflow.org/probability/api_docs/python/tfp/bijectors/RealNVP)
