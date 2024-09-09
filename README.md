@@ -1,40 +1,37 @@
 # flow_models
-Flow-based invertible neural networks implemented with Keras, Tensorflow, and
-Tensorflow Probability.
+
+Flow models are invertible neural networks (INNs) — a type of generative model
+that allows not only generating new samples from the learned distribution
+(which GANs and VAEs do too) but also exact likelihood computation as well
+(which GANs and VAEs do not).  This is accomplished with an architecture that
+ensures all transformations are reversible and the Jacobian determinant is
+efficiently computable.  By modeling probabilities directly, INNs allow for a
+range of other applications too - a real Swiss-army-knife of the modeling world
+that I'm recently fascinated with.  <IMG SRC="doc/sak.jpg" ALT="" WIDTH=25>
 
 <IMG SRC="doc/INNfig_3sec.gif" ALT="Seven applications of flow-model in different forms" WIDTH=700>
 
-Flow models are invertible neural networks (INNs) — a type of generative model
-that allows exact likelihood computation as well as generating new samples from
-the learned distribution.  This is done with an architecture that ensures all
-transformations are reversible and the Jacobian determinant is efficiently
-computable.
+These flow models transform complex data distributions into more tractable ones
+(usually Gaussian) in which it's feasible to do probabilistic calculations such
+as anomaly detection for example.  But these models allow far more than anomaly
+detection - their capabilities allow INNs to cover generative image modeling,
+generative classification, parameter estimation on ill-conditioned problems,
+and (ill-posed) inverse problems with or without noise on the data.  All of
+these stem from the theme of mapping one probability distribution into another.
 
-These models transform complex data distributions into more tractable/useful
-ones (usually Gaussian) in which it is more feasible to do probabilistic
-calculations such as for anomaly detection.  But these models allow far more
-than anomaly detection - their capabilities allow INNs to cover generative
-image modeling, generative classification, parameter estimation on
-ill-conditioned problems, and (ill-posed) inverse problems with or without
-noise on the data.  All of these stem from the theme of mapping one distribution
-into another.
+Other implementations of INNs I've seen out there only cover one specific
+application and with a lot of bespoke code.  But the Tensorflow Probability
+provides almost everything needed to implement these models in a more
+encapsulated, cleaner, and easier to understand way (at least for me!).
 
-Unlike earlier generative models like Variational Autoencoders (VAEs) or
-Generative Adversarial Networks (GANs), flow models provide an exact
-log-likelihood optimization.  So in modeling the distribution of the data, with
-INNs one can explicitly estimate the probability that a new image is outside the
-distribution of the training data, in addition to creating new data samples
-that adhere to the learned distribution.
+The above diagram summarizes variations for different applications in how the
+N-dimensional model inputs x are mapped through the flow model to N-dimensional
+points z that includes a multivariate Gaussian.  All those points can each be
+mapped back though the model to images as well.  The multivariate Gaussian is a
+standard normal distribution, so by construction has mean of zero and
+covariance as the identity matrix.
 
-
-This diagram shows how the model inputs x, being N-dimensional vectors of
-flattened images, are mapped through the flow model to points z in an
-N-dimensional multivariate Gaussian latent space.  And those points can each be
-mapped back though the model to images as well.  The distribution is a standard
-normal (N-dimensional), so by construction has mean of zero and covariance as
-the identity matrix.
-
-Work currently still in progress, but things are functional meanwhile per
+Work is currently still in progress, but things are functional meanwhile per
 instructions below.  This code is what I used to produce the materials in 
 ["Sim-cats! Image generation and unsupervised learning for anomaly detection as
   two sides of the same coin"](http://research.ganse.org/datasci/sim-cats)
