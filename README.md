@@ -7,8 +7,7 @@ as well (which GANs and VAEs do not).  This is accomplished with an
 architecture that ensures all transformations are reversible and the Jacobian
 determinant is efficiently computable.  By modeling probabilities directly,
 INNs allow for a range of other applications too - a real Swiss-army-knife of
-the modeling world that I'm recently fascinated with.  
-<IMG SRC="doc/sak.jpg" ALT="" WIDTH=25>
+the modeling world that I'm recently fascinated with.  <IMG SRC="doc/sak.jpg" ALT="" WIDTH=25>
 
 <IMG SRC="doc/INNfig_3sec.gif" ALT="Seven applications of flow-model in different forms" WIDTH=700>
 
