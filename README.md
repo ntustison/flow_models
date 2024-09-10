@@ -1,23 +1,25 @@
 # flow_models
 
-Flow models are invertible neural networks (INNs) — a type of generative model
-that allows not only generating new samples from the learned distribution
-(which GANs and VAEs do too) but also exact likelihood computation as well
-(which GANs and VAEs do not).  This is accomplished with an architecture that
-ensures all transformations are reversible and the Jacobian determinant is
-efficiently computable.  By modeling probabilities directly, INNs allow for a
-range of other applications too - a real Swiss-army-knife of the modeling world
-that I'm recently fascinated with.  <IMG SRC="doc/sak.jpg" ALT="" WIDTH=25>
+Normalizing-flow models are invertible neural networks (INNs) — a type of
+generative model that allows not only generating new samples from the learned
+distribution (which GANs and VAEs do too) but also exact likelihood computation
+as well (which GANs and VAEs do not).  This is accomplished with an
+architecture that ensures all transformations are reversible and the Jacobian
+determinant is efficiently computable.  By modeling probabilities directly,
+INNs allow for a range of other applications too - a real Swiss-army-knife of
+the modeling world that I'm recently fascinated with.  
+<IMG SRC="doc/sak.jpg" ALT="" WIDTH=25>
 
 <IMG SRC="doc/INNfig_3sec.gif" ALT="Seven applications of flow-model in different forms" WIDTH=700>
 
-These flow models transform complex data distributions into more tractable ones
-(usually Gaussian) in which it's feasible to do probabilistic calculations such
-as anomaly detection for example.  But these models allow far more than anomaly
-detection - their capabilities allow INNs to cover generative image modeling,
-generative classification, parameter estimation on ill-conditioned problems,
-and (ill-posed) inverse problems with or without noise on the data.  All of
-these stem from the theme of mapping one probability distribution into another.
+These normalizing-flow models transform complex data distributions into more
+tractable ones (usually Gaussian) in which it's feasible to do probabilistic
+calculations such as anomaly detection for example.  But these models allow far
+more than anomaly detection - their capabilities allow INNs to cover generative
+image modeling, generative classification, parameter estimation on
+ill-conditioned problems, and (ill-posed) inverse problems with or without
+noise on the data.  All of these stem from the theme of mapping one probability
+distribution into another.
 
 Other implementations of INNs I've seen out there only cover one specific
 application and with a lot of bespoke code.  But the Tensorflow Probability
