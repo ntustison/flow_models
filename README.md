@@ -44,7 +44,7 @@ referenced at the bottom of this readme though.
 Work is currently still in progress - I'm gradually implementing the series of
 7 applications in the figure - currently #2 is fully implemented (documented
 at
-["Flow_models 2: Image generation and anomaly detection as two sides of the same coin"](http://research.ganse.org/datasci/flow_models/flow_models2.html),
+["Flow_models 2: Image generation and anomaly detection as two sides of the same coin"](http://research.ganse.org/datasci/flow_models/flow_models_2.html),
 and as the first comprised the bulk of the work - the rest are variations using
 same modeling code).  Instructions for using/running that follow below, and
 similar ones are upcoming for the other applications as well.  Point being,
