@@ -45,6 +45,11 @@ class FlowModel(tf.keras.Model):
           https://stackoverflow.com/questions/57261612/better-way-of-building-realnvp-layer-in-tensorflow-2-0
         Brian Keng's Normalizing Flows with Real NVP article, more mathematical:
           https://bjlkeng.io/posts/normalizing-flows-with-real-nvp/#modified-batch-normalization
+        Helpful rundown of bits-per-dimension in Papamakarios et al 2018 paper
+          "Masked Autoregressive Flow for Density Estimation": https://arxiv.org/pdf/1705.07057
+          section E.2; note they call it "bits per pixel".  They express in
+          average log likelihoods too (note that's actually what the NLL value
+          is at very bottom of this script here).
 
         Note in NICE paper regarding flow_steps: "Examining the Jacobian, we
         observe that at least three coupling layers are necessary to allow all
@@ -115,6 +120,12 @@ class FlowModel(tf.keras.Model):
 
     @tf.function
     def train_step(self, data):
+        """Compute NLL and gradients for a given training step.
+        Note that NLL here is actually average NLL per image (avg over N images),
+        consistent with many papers in the literature, and supporting the
+        bits-per-dimension value as a "within one image" value - an average
+        over the current batch.
+        """
         images = data
         images = tf.reshape(images, (-1, np.prod(self.image_shape)))
         with tf.GradientTape() as tape:
