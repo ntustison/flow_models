@@ -23,7 +23,14 @@ class FlowModel(tf.keras.Model):
     flow_model = FlowModel(image_shape, hidden_layers, flow_steps, validate_args)
     """
 
-    def __init__(self, image_shape, hidden_layers=[256, 256], flow_steps=4, reg_level=0.01, validate_args=False):
+    def __init__(
+        self,
+        image_shape,
+        hidden_layers=[256, 256],
+        flow_steps=4,
+        reg_level=0.01,
+        validate_args=False,
+    ):
         """RealNVP-based flow architecture, using TFP as much as possible so the
         architectures don't *exactly* match the papers but are pretty close.
         Refs:
@@ -85,7 +92,7 @@ class FlowModel(tf.keras.Model):
                     shift_and_log_scale_fn=tfp.bijectors.real_nvp_default_template(
                         hidden_layers=hidden_layers,
                         kernel_initializer=tf.keras.initializers.GlorotUniform(),
-                        kernel_regularizer=tf.keras.regularizers.l2(reg_level)
+                        kernel_regularizer=tf.keras.regularizers.l2(reg_level),
                     ),
                     validate_args=validate_args,
                     name="{}_{}/realnvp".format(layer_name, i),
@@ -93,17 +100,17 @@ class FlowModel(tf.keras.Model):
             )
         flow_step_list = list(flow_step_list[1:])  # leave off last permute
         self.flow_bijector = tfp.bijectors.Chain(
-            flow_step_list,
-            validate_args=validate_args,
-            name=layer_name
+            flow_step_list, validate_args=validate_args, name=layer_name
         )
         print("flow_step_list:", flow_step_list)
 
-        base_distribution = tfp.distributions.MultivariateNormalDiag(loc=[0.] * flat_image_size)
+        base_distribution = tfp.distributions.MultivariateNormalDiag(
+            loc=[0.0] * flat_image_size
+        )
         self.flow = tfp.distributions.TransformedDistribution(
             distribution=base_distribution,
             bijector=self.flow_bijector,
-            name="Top_Level_Flow_Model"
+            name="Top_Level_Flow_Model",
         )
 
     @tf.function
@@ -114,8 +121,7 @@ class FlowModel(tf.keras.Model):
 
     @tf.function
     def inverse(self, outputs):
-        """Gaussian points to images.
-        """
+        """Gaussian points to images."""
         return self.flow.bijector.inverse(outputs)
 
     @tf.function
@@ -130,14 +136,23 @@ class FlowModel(tf.keras.Model):
         images = tf.reshape(images, (-1, np.prod(self.image_shape)))
         with tf.GradientTape() as tape:
             log_prob = self.flow.log_prob(images)
-            if tf.reduce_any(tf.math.is_nan(log_prob)) or tf.reduce_any(tf.math.is_inf(log_prob)):
+            if tf.reduce_any(tf.math.is_nan(log_prob)) or tf.reduce_any(
+                tf.math.is_inf(log_prob)
+            ):
                 tf.print("NaN or Inf detected in log_prob")
             neg_log_likelihood = -tf.reduce_mean(log_prob)
             gradients = tape.gradient(neg_log_likelihood, self.flow.trainable_variables)
-            if tf.reduce_any([tf.reduce_any(tf.math.is_nan(g)) or tf.reduce_any(tf.math.is_inf(g)) for g in gradients]):
+            if tf.reduce_any(
+                [
+                    tf.reduce_any(tf.math.is_nan(g)) or tf.reduce_any(tf.math.is_inf(g))
+                    for g in gradients
+                ]
+            ):
                 tf.print("NaN or Inf detected in gradients")
-            gradients = [tf.clip_by_value(g, -1.0, 1.0) for g in gradients]  # gradient clipping
+            gradients = [
+                tf.clip_by_value(g, -1.0, 1.0) for g in gradients
+            ]  # gradient clipping
         self.optimizer.apply_gradients(zip(gradients, self.flow.trainable_variables))
-        bits_per_dim_divisor = (np.prod(self.image_shape) * tf.math.log(2.0))
+        bits_per_dim_divisor = np.prod(self.image_shape) * tf.math.log(2.0)
         bpd = neg_log_likelihood / bits_per_dim_divisor
         return {"neg_log_likelihood": neg_log_likelihood, "bits_per_dim": bpd}

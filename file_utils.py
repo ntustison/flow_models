@@ -1,4 +1,5 @@
 """AWS based file utililities for convenience in Tensorflow/Keras modeling"""
+
 import os
 import re
 
@@ -8,10 +9,12 @@ from PIL import Image
 import tensorflow as tf
 
 
-s3_paginator = boto3.client('s3').get_paginator('list_objects_v2')
+s3_paginator = boto3.client("s3").get_paginator("list_objects_v2")
 
 
-def s3keys(s3_uri, start_after='', extensions=['png', 'jpg'], cycle=False, delimiter='/'):
+def s3keys(
+    s3_uri, start_after="", extensions=["png", "jpg"], cycle=False, delimiter="/"
+):
     """
     Generate S3 object keys from a specified bucket/prefix with given extensions,
     optionally cycling indefinitely to accommodate data augmentation.  I.e. this
@@ -46,19 +49,23 @@ def s3keys(s3_uri, start_after='', extensions=['png', 'jpg'], cycle=False, delim
 
     """
     if s3_uri[:5] == "s3://":
-        bucket_name, _, prefix = s3_uri[5:].partition('/')
+        bucket_name, _, prefix = s3_uri[5:].partition("/")
     else:
         raise ValueError("s3_uri should start with s3://...")
     print(f"bucket_name={bucket_name}, prefix={prefix}")
     prefix = prefix.lstrip(delimiter)
-    if start_after and not start_after.startswith(prefix):  # Validation before modifying start_after
+    if start_after and not start_after.startswith(
+        prefix
+    ):  # Validation before modifying start_after
         raise ValueError("start_after must start with the prefix.")
     start_after = (start_after or prefix) if prefix.endswith(delimiter) else start_after
     while True:  # Loop to restart the generator for cycling
-        for page in s3_paginator.paginate(Bucket=bucket_name, Prefix=prefix, StartAfter=start_after):
-            for content in page.get('Contents', ()):
-                if content['Key'].split('.')[-1] in extensions:
-                    yield content['Key']
+        for page in s3_paginator.paginate(
+            Bucket=bucket_name, Prefix=prefix, StartAfter=start_after
+        ):
+            for content in page.get("Contents", ()):
+                if content["Key"].split(".")[-1] in extensions:
+                    yield content["Key"]
         if not cycle:  # Break the loop if cycling is not enabled
             break
 
@@ -92,9 +99,16 @@ class S3ImageDataGenerator:
         )
     """
 
-    def __init__(self, rescale=None, horizontal_flip=False, zoom_range=0.0,
-                 shear_range=0.0, rotation_range=0.0, width_shift_range=0.0,
-                 height_shift_range=0.0):
+    def __init__(
+        self,
+        rescale=None,
+        horizontal_flip=False,
+        zoom_range=0.0,
+        shear_range=0.0,
+        rotation_range=0.0,
+        width_shift_range=0.0,
+        height_shift_range=0.0,
+    ):
 
         # Validate input args and put things into necessary form.
         # (Need to add to these validations.)
@@ -119,9 +133,15 @@ class S3ImageDataGenerator:
         self.width_shift_range = width_shift_range
         self.height_shift_range = height_shift_range
 
-    def flow_from_directory(self, uri, target_size=(256, 256),
-                            batch_size=32, class_mode='binary', shuffle=True,
-                            save_format=['png', 'jpg']):
+    def flow_from_directory(
+        self,
+        uri,
+        target_size=(256, 256),
+        batch_size=32,
+        class_mode="binary",
+        shuffle=True,
+        save_format=["png", "jpg"],
+    ):
         """
         Generates batches of augmented/normalized data from URI (incl subdirs).
         Designed to be drop-in replacement (or close) for
@@ -163,10 +183,14 @@ class S3ImageDataGenerator:
         # This list could be very long but its elements are only short strings.
         if uri[:5] == "s3://":
             # Get image paths from S3 bucket
-            bucket_name, _, prefix = uri[5:].partition('/')
-            s3 = boto3.client('s3')
+            bucket_name, _, prefix = uri[5:].partition("/")
+            s3 = boto3.client("s3")
             response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
-            all_keys = [obj['Key'] for obj in response['Contents'] if obj['Key'].endswith(tuple(save_format))]
+            all_keys = [
+                obj["Key"]
+                for obj in response["Contents"]
+                if obj["Key"].endswith(tuple(save_format))
+            ]
         else:
             # Get image paths from filesystem
             all_keys = []
@@ -186,7 +210,7 @@ class S3ImageDataGenerator:
                 if shuffle:
                     np.random.shuffle(all_keys)
                 for i in range(0, len(all_keys), batch_size):
-                    batch_keys = all_keys[i:i + batch_size]
+                    batch_keys = all_keys[i : i + batch_size]
                     # batch_keys = list(islice(all_keys, batch_size))  # for all_keys generator experimentation
                     batch_images = []
                     # batch_labels = []
@@ -194,7 +218,9 @@ class S3ImageDataGenerator:
                         if uri[:5] == "s3://":
                             # Get image from S3 bucket
                             # (the regexp expression below gets bucketname from uri)
-                            img = self.download_image_from_s3(re.match(r's3://([^/]+)/?', uri).group(1), key)
+                            img = self.download_image_from_s3(
+                                re.match(r"s3://([^/]+)/?", uri).group(1), key
+                            )
                         else:
                             # Get image from filesystem
                             img = Image.open(key)
@@ -211,12 +237,14 @@ class S3ImageDataGenerator:
                         #         # Assume label_map is predefined dictionary mapping directory names to class indices
                         #         label = tf.keras.utils.to_categorical(label_map[label], num_classes)
                         #     batch_labels.append(label)
-                    if class_mode == 'input':
+                    if class_mode == "input":
                         yield np.array(batch_images), np.array(batch_images)
                     elif class_mode is None:
                         yield np.array(batch_images)
                     else:
-                        raise ValueError("only class_modes {None, 'input'} are implemented so far.")
+                        raise ValueError(
+                            "only class_modes {None, 'input'} are implemented so far."
+                        )
                         # The following line relies on batch_labels defined in
                         # commented-out lines above (which must be completed):
                         # yield np.array(batch_images), np.array(batch_labels)
@@ -224,9 +252,9 @@ class S3ImageDataGenerator:
         return generator()
 
     def download_image_from_s3(self, bucket, key):
-        s3 = boto3.client('s3')
+        s3 = boto3.client("s3")
         response = s3.get_object(Bucket=bucket, Key=key)
-        image_data = response['Body'].read()
+        image_data = response["Body"].read()
         return tf.image.decode_jpeg(image_data, channels=3)
 
     def preprocess_image(self, image, target_size):
@@ -236,19 +264,27 @@ class S3ImageDataGenerator:
         if self.horizontal_flip and tf.random.uniform(()) > 0.5:
             image = tf.image.flip_left_right(image)
         if self.rotation_range:
-            angle = tf.random.uniform((), minval=-self.rotation_range, maxval=self.rotation_range)
+            angle = tf.random.uniform(
+                (), minval=-self.rotation_range, maxval=self.rotation_range
+            )
             image = tf.image.rot90(image, k=int(angle / 90))
         if self.shear_range:
-            intensity = tf.random.uniform((), minval=-self.shear_range, maxval=self.shear_range)
+            intensity = tf.random.uniform(
+                (), minval=-self.shear_range, maxval=self.shear_range
+            )
             image = self.apply_shear_transform(image, intensity)
             # image = self.apply_shear_transform(image, self.shear_range)
         if self.zoom_range != 0:
             image = self.apply_zoom(image, self.zoom_range, target_size)
         if self.width_shift_range:
-            shift = tf.random.uniform((), -self.width_shift_range, self.width_shift_range)
+            shift = tf.random.uniform(
+                (), -self.width_shift_range, self.width_shift_range
+            )
             image = tf.image.translate(image, [shift * target_size[1], 0])
         if self.height_shift_range:
-            shift = tf.random.uniform((), -self.height_shift_range, self.height_shift_range)
+            shift = tf.random.uniform(
+                (), -self.height_shift_range, self.height_shift_range
+            )
             image = tf.image.translate(image, [0, shift * target_size[0]])
         return image
 
@@ -262,12 +298,14 @@ class S3ImageDataGenerator:
         shear_matrix = tf.reshape(shear_matrix, [3, 3])
 
         # Convert image to homogeneous coordinates (add a dimension for the transformation)
-        batched_image = tf.expand_dims(image, 0)  # Add batch dimension for compatibility with transform
+        batched_image = tf.expand_dims(
+            image, 0
+        )  # Add batch dimension for compatibility with transform
         transformed_image = tf.raw_ops.ImageProjectiveTransformV3(
             images=batched_image,
             transforms=shear_matrix,
             output_shape=tf.shape(image),
-            interpolation='BILINEAR'
+            interpolation="BILINEAR",
         )
 
         return transformed_image[0]  # Remove batch dimension
@@ -291,5 +329,7 @@ class S3ImageDataGenerator:
 
         # Crop or pad the zoomed image to match the target size
         # This ensures the output image has the same dimensions as the input image
-        image = tf.image.resize_with_crop_or_pad(zoomed_image, target_size[0], target_size[1])
+        image = tf.image.resize_with_crop_or_pad(
+            zoomed_image, target_size[0], target_size[1]
+        )
         return image

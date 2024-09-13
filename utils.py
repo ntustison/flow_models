@@ -6,7 +6,11 @@ from scipy.spatial import distance
 import seaborn as sns
 from sklearn.decomposition import PCA
 import tensorflow as tf
-from tensorflow.keras.preprocessing.image import ImageDataGenerator, load_img, img_to_array
+from tensorflow.keras.preprocessing.image import (
+    ImageDataGenerator,
+    load_img,
+    img_to_array,
+)
 
 
 def imgs_to_gaussian_pts(model, image_generator, N, neigvals=100, p_outliers=10):
@@ -50,7 +54,9 @@ def imgs_to_gaussian_pts(model, image_generator, N, neigvals=100, p_outliers=10)
         mean_full = np.mean(gaussian_points, axis=0)
         mean_reduced = np.mean(reduced_data, axis=0)
         cov_reduced = np.cov(reduced_data, rowvar=False)
-        dists_reduced = np.array([distance.euclidean(point, mean_reduced) for point in reduced_data])
+        dists_reduced = np.array(
+            [distance.euclidean(point, mean_reduced) for point in reduced_data]
+        )
         outlier_indices = np.argsort(dists_reduced)[-p_outliers:]
         top_outliers = gaussian_points[outlier_indices]
         inlier_indices = np.argsort(dists_reduced)[:p_outliers]
@@ -66,11 +72,17 @@ def imgs_to_gaussian_pts(model, image_generator, N, neigvals=100, p_outliers=10)
     return gaussian_points, mean_full, cov_reduced, pca, top_outliers, closest_to_mean
 
 
-def plot_gaussian_pts_2d(training_pts, plotfile="compare_points_2d.png",
-    mean=None, sim_pts=None, sim_pts_label="sim images", other_pts=None,
-    other_pts_label="anomaly images", num_regen=None):
-    """Scatterplot of various categories of points in the Gaussian latent space.
-    """
+def plot_gaussian_pts_2d(
+    training_pts,
+    plotfile="compare_points_2d.png",
+    mean=None,
+    sim_pts=None,
+    sim_pts_label="sim images",
+    other_pts=None,
+    other_pts_label="anomaly images",
+    num_regen=None,
+):
+    """Scatterplot of various categories of points in the Gaussian latent space."""
 
     pca = PCA(n_components=2)
 
@@ -95,11 +107,17 @@ def plot_gaussian_pts_2d(training_pts, plotfile="compare_points_2d.png",
         train_pts = pca.fit_transform(training_pts)
 
     fig, ax = plt.subplots()
-    ax.scatter(train_pts[:, 0], train_pts[:, 1], color="C0", alpha=0.5, label="train images")
+    ax.scatter(
+        train_pts[:, 0], train_pts[:, 1], color="C0", alpha=0.5, label="train images"
+    )
 
     if num_regen is not None:
-        ax.scatter(train_pts[:num_regen, 0], train_pts[:num_regen, 1],
-                   color='cyan', label="regen images")
+        ax.scatter(
+            train_pts[:num_regen, 0],
+            train_pts[:num_regen, 1],
+            color="cyan",
+            label="regen images",
+        )
         # ax.scatter(train_pts[:num_regen, 0], train_pts[:num_regen, 1],
         #            label="regen images", facecolors='C0', alpha=0.5, edgecolors='k')
         # for i in range(num_regen):
@@ -110,27 +128,50 @@ def plot_gaussian_pts_2d(training_pts, plotfile="compare_points_2d.png",
     if sim_pts is not None:
         ax.scatter(sim_pts[:, 0], sim_pts[:, 1], color="C1", label=sim_pts_label)
         for i in range(sim_pts.shape[0]):
-            ax.annotate(str(i + 1), (sim_pts[i, 0], sim_pts[i, 1]),
-                        textcoords="offset points", xytext=(0, 0), ha='center', va='center')
+            ax.annotate(
+                str(i + 1),
+                (sim_pts[i, 0], sim_pts[i, 1]),
+                textcoords="offset points",
+                xytext=(0, 0),
+                ha="center",
+                va="center",
+            )
 
     if other_pts is not None:
         print(f"2D coordinates of the {other_pts_label} points in the scatterplot:")
         print(other_pts)
-        ax.scatter(other_pts[:, 0], other_pts[:, 1], color="chartreuse", label=other_pts_label)
+        ax.scatter(
+            other_pts[:, 0], other_pts[:, 1], color="chartreuse", label=other_pts_label
+        )
         for i in range(other_pts.shape[0]):
-            ax.annotate(str(i + 1), (other_pts[i, 0], other_pts[i, 1]),
-                        textcoords="offset points", xytext=(0, 0), ha='center', va='center')
+            ax.annotate(
+                str(i + 1),
+                (other_pts[i, 0], other_pts[i, 1]),
+                textcoords="offset points",
+                xytext=(0, 0),
+                ha="center",
+                va="center",
+            )
 
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))  # put axis outside plot on right side
+    ax.legend(
+        loc="center left", bbox_to_anchor=(1, 0.5)
+    )  # put axis outside plot on right side
     plt.title("2D PCA of mapped gaussian points")
     plt.xlabel("Principal component 1")
     plt.ylabel("Principal component 2")
     plt.savefig(plotfile, bbox_inches="tight")
 
 
-def plot_gaussian_pts_1d(training_pts, plotfile="compare_points_1d.png",
-    mean=None, reduced_cov=None, sim_pts=None, other_pts=None,
-    other_pts_label="anomaly images", num_regen=None):
+def plot_gaussian_pts_1d(
+    training_pts,
+    plotfile="compare_points_1d.png",
+    mean=None,
+    reduced_cov=None,
+    sim_pts=None,
+    other_pts=None,
+    other_pts_label="anomaly images",
+    num_regen=None,
+):
     """Histogram of the magnitudes of the (high-dimensional) gaussian vectors in
     the latent space.  Since those are normally distributed (by construction),
     if there's a reasonable number of samples then this histogram should look
@@ -145,18 +186,33 @@ def plot_gaussian_pts_1d(training_pts, plotfile="compare_points_1d.png",
 
     if num_regen is not None:
         y_values = y_level * np.ones(num_regen)  # Create an array of y values
-        ax.scatter(training_pts_1d[:num_regen], y_values, label="regen images",
-                   facecolors='C0', alpha=0.5, edgecolors='k')
+        ax.scatter(
+            training_pts_1d[:num_regen],
+            y_values,
+            label="regen images",
+            facecolors="C0",
+            alpha=0.5,
+            edgecolors="k",
+        )
 
     if sim_pts is not None:
         y_values = y_level * np.ones(len(sim_pts))  # Create an array of y values
-        ax.scatter(training_pts_1d[:len(sim_pts)], y_values, color="C1", label="sim images")
+        ax.scatter(
+            training_pts_1d[: len(sim_pts)], y_values, color="C1", label="sim images"
+        )
 
     if other_pts is not None:
         y_values = y_level * np.ones(len(other_pts))  # Create an array of y values
-        ax.scatter(training_pts_1d[:len(other_pts)], y_values, color="chartreuse", label=other_pts_label)
+        ax.scatter(
+            training_pts_1d[: len(other_pts)],
+            y_values,
+            color="chartreuse",
+            label=other_pts_label,
+        )
 
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))  # put axis outside plot on right side
+    ax.legend(
+        loc="center left", bbox_to_anchor=(1, 0.5)
+    )  # put axis outside plot on right side
     plt.title("1D distribution of mapped gaussian points")
     plt.xlabel("Gaussian vector magnitudes")
     plt.ylabel("Density and example points")
@@ -174,7 +230,7 @@ def generate_multivariate_normal_samples(mean, reduced_cov, pca, num_samples):
         # (make 1D mean into 2D, then rotate/reduce it, then put back to 1D)
         mean=np.squeeze(pca.transform([mean])),
         cov=reduced_cov,
-        size=num_samples
+        size=num_samples,
     )
 
     # Transform new samples back to original space
@@ -184,8 +240,17 @@ def generate_multivariate_normal_samples(mean, reduced_cov, pca, num_samples):
     return new_samples_tf
 
 
-def generate_imgs_in_batches(model, num_gen_images, mean, reduced_cov, pca,
-        filename="sim_image", batch_size=10, regen_pts=None, add_plot_num=False):
+def generate_imgs_in_batches(
+    model,
+    num_gen_images,
+    mean,
+    reduced_cov,
+    pca,
+    filename="sim_image",
+    batch_size=10,
+    regen_pts=None,
+    add_plot_num=False,
+):
     """Given latent space distribution params, and/or list of points to use
     (regen_pts), map those through the model into images.
 
@@ -213,15 +278,19 @@ def generate_imgs_in_batches(model, num_gen_images, mean, reduced_cov, pca,
 
         if regen_pts is None:
             # Generate a batch of Gaussian samples using TensorFlow
-            samples_tf = generate_multivariate_normal_samples(mean, reduced_cov, pca, current_batch_size)
+            samples_tf = generate_multivariate_normal_samples(
+                mean, reduced_cov, pca, current_batch_size
+            )
         else:
             # Get next batch worth of points from supplied training_points
             regen_tf = tf.convert_to_tensor(regen_pts, dtype=tf.float32)
-            samples_tf = regen_tf[(batch_idx * batch_size):(batch_idx * batch_size + current_batch_size)]
+            samples_tf = regen_tf[
+                (batch_idx * batch_size) : (batch_idx * batch_size + current_batch_size)
+            ]
 
         for i in range(current_batch_size):
             # Map back through the invertible network
-            generated_image = model.inverse(samples_tf[i:i + 1])
+            generated_image = model.inverse(samples_tf[i : i + 1])
             generated_image = tf.reshape(generated_image, model.image_shape)
 
             # Save the generated image
@@ -229,10 +298,14 @@ def generate_imgs_in_batches(model, num_gen_images, mean, reduced_cov, pca,
             img = (img * 255).astype(np.uint8)  # Convert back to uint8 format
             img_idx = batch_idx * batch_size + i + 1
             if add_plot_num:
-                img = add_text_to_image(img, str(img_idx), font_size=20, color="orange", bold=True)
+                img = add_text_to_image(
+                    img, str(img_idx), font_size=20, color="orange", bold=True
+                )
             plt.imsave(f"{filename}_{img_idx}.png", img)
 
-        print(f"Generated and saved {batch_idx * batch_size + current_batch_size} images out of {num_gen_images}")
+        print(
+            f"Generated and saved {batch_idx * batch_size + current_batch_size} images out of {num_gen_images}"
+        )
 
     return samples_tf
 
@@ -255,11 +328,12 @@ def add_text_to_image(image, text, font_size, color, bold):
 
 
 def print_run_params(**kwargs):
-    """Generic function to dump the args list into text file, for debug/logging.
-    """
+    """Generic function to dump the args list into text file, for debug/logging."""
 
     if "output_dir" not in kwargs:
-        raise ValueError("print_run_params: error: 'output_dir' must be one of the kwargs.")
+        raise ValueError(
+            "print_run_params: error: 'output_dir' must be one of the kwargs."
+        )
 
     print("Run params:", kwargs)
 
@@ -273,8 +347,7 @@ def print_run_params(**kwargs):
 
 
 def print_model_summary(model):
-    """Just experimenting with alternate model summaries than model.summary()
-    """
+    """Just experimenting with alternate model summaries than model.summary()"""
 
     # Print the header
     print(f"{'Layer Name':<20}{'Output Shape':<20}{'#Parameters':<11}")
@@ -289,12 +362,11 @@ def print_model_summary(model):
 
 
 def print_model_summary_nested(model):
-    """Just experimenting with alternate model summaries than model.summary()
-    """
+    """Just experimenting with alternate model summaries than model.summary()"""
 
     for layer in model.layers:
         print(layer.name)
-        if hasattr(layer, 'layers'):
+        if hasattr(layer, "layers"):
             for sub_layer in layer.layers:
                 print(f"  {sub_layer.name}")
 
@@ -347,7 +419,7 @@ def slerp(point1, point2, t):
     return t1 * point1 + t2 * point2
 
 
-def interpolate_between_points(gaussian_points, N, path='euclidean'):
+def interpolate_between_points(gaussian_points, N, path="euclidean"):
     """
     Interpolates N points between two high-dimensional points using a specified path.
 
@@ -364,9 +436,9 @@ def interpolate_between_points(gaussian_points, N, path='euclidean'):
 
     t_values = tf.linspace(0.0, 1.0, N)
 
-    if path == 'euclidean':
+    if path == "euclidean":
         interpolated_points = [(1 - t) * point1 + t * point2 for t in t_values]
-    elif path == 'slerp':
+    elif path == "slerp":
         interpolated_points = [slerp(point1, point2, t) for t in t_values]
     else:
         raise ValueError("Invalid path argument. Use 'euclidean' or 'slerp'.")
