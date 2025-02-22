@@ -74,6 +74,7 @@ class FlowModel(tf.keras.Model):
         for i in range(flow_steps):
             flow_step_list.append(
                 tfp.bijectors.BatchNormalization(
+                    training=False,
                     validate_args=validate_args,
                     name="{}_{}/batchnorm".format(layer_name, i),
                 )

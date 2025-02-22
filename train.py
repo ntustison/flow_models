@@ -1,7 +1,13 @@
 from datetime import datetime
 import warnings
+import os
 
-from tensorflow.keras.callbacks import EarlyStopping
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["TF_USE_LEGACY_KERAS"] = "True"
+
+import tensorflow as tf
+
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import ExponentialDecay
 from tensorflow.python.keras.callbacks import TensorBoard
@@ -19,10 +25,10 @@ warnings.filterwarnings("ignore", category=UserWarning)  # TFP spews a number of
 # tf.debugging.set_log_device_placement(True)
 
 ### Run params: ###
-output_dir = "output"
-model_dir = "models/cat_models/cats_256x256new"
+output_dir = "output/"
+model_dir = "models/"
 do_train = True  # true = training, false = inference w existing model in model_dir
-use_tensorboard = True
+use_tensorboard = False
 do_imgs_and_points = (
     True  # generate scatterplots, sim images, etc:  not dataset specific
 )
@@ -30,7 +36,7 @@ do_interp = (
     False  # interp sim images between some training points:  cat dataset specific
 )
 ### Training params: ###
-num_epochs = 10
+num_epochs = 100
 batch_size = 128
 reg_level = 0  # 0.01  # regularization level for the L2 reg in realNVP hidden layers
 learning_rate = 0.00001  # scaler -> constant rate; list-of-3 -> exponential decay
@@ -44,7 +50,7 @@ num_gen_images = 10  # number of new images to generate
 image_shape = (256, 256, 3)  # (height, width, channels) of images
 hidden_layers = [512, 512]  # nodes per layer within affine coupling layers
 flow_steps = 6  # number of affine coupling layers
-validate_args = True
+validate_args = False
 # Record those param settings:
 utils.print_run_params(
     output_dir=output_dir,
@@ -75,14 +81,14 @@ datagen = S3ImageDataGenerator(
     height_shift_range=0.0,  # 0.1,  # still debugging this feature
 )
 train_generator = datagen.flow_from_directory(
-    "s3://mybucket/train",
+    "data/afhq/train/cat",
     target_size=image_shape[:2],  # images get resized to this size
     batch_size=batch_size,
     class_mode=None,  # unsupervised learning so no class labels
     shuffle=False,  # possibly helpful for training but pain for plot revamps/additions
 )
 other_generator = datagen.flow_from_directory(
-    "s3://mybucket/val",
+    "data/afhq/val/cat",
     target_size=image_shape[:2],  # images get resized to this size
     batch_size=batch_size,
     class_mode=None,  # unsupervised learning so no class labels
@@ -116,6 +122,14 @@ if do_train:
         quit()
 
     callbacks = []
+    callbacks.append(
+        ModelCheckpoint(
+            model_dir + "/model_weights", 
+            monitor='neg_log_likelihood',
+            save_best_only=True, 
+            save_weights_only=True, 
+            mode='auto', 
+            verbose=1))
     if early_stopping_patience > 0:
         callbacks.append(
             EarlyStopping(
@@ -129,7 +143,7 @@ if do_train:
         callbacks.append(
             TensorBoard(log_dir=log_dir, histogram_freq=1, write_graph=False)
         )
-    flow_model.compile(optimizer=Adam(learning_rate=lrate))
+    flow_model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=lrate))
     infinite_train_generator = utils.infinite_generator(train_generator)
     flow_model.fit(
         infinite_train_generator,
